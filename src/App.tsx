@@ -3,11 +3,15 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import Layout from './components/Layout'
+import { EmployeeProvider } from './context/EmployeeContext'
+import { TimeClockProvider } from './context/TimeClockContext'
+import { SettingsProvider } from './context/SettingsContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import JobsPage from './pages/JobsPage'
 import EstimatesPage from './pages/EstimatesPage'
 import EmployeesPage from './pages/EmployeesPage'
+import EmployeeProfilePage from './pages/EmployeeProfilePage'
 import TimeClockPage from './pages/TimeClockPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -35,6 +39,9 @@ function App() {
   )
 
   return (
+    <SettingsProvider>
+    <TimeClockProvider>
+    <EmployeeProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={!session ? <LoginPage /> : <Navigate to="/dashboard" replace />} />
@@ -43,12 +50,16 @@ function App() {
           <Route path="/jobs" element={<JobsPage />} />
           <Route path="/estimates" element={<EstimatesPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
+          <Route path="/employees/:id" element={<EmployeeProfilePage />} />
           <Route path="/timeclock" element={<TimeClockPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} replace />} />
       </Routes>
     </BrowserRouter>
+    </EmployeeProvider>
+    </TimeClockProvider>
+    </SettingsProvider>
   )
 }
 
