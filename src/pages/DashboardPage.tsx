@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -21,26 +20,7 @@ const statusColors: Record<string, string> = {
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 text-white">
-      {/* Top Nav */}
-      <header className="bg-stone-900 border-b border-stone-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <polyline points="2,32 20,10 38,32" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <polyline points="10,32 20,18 30,32" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.5"/>
-          </svg>
-          <span className="text-xl font-bold tracking-tight">Ridgeline</span>
-        </div>
-        <Button
-          onClick={() => supabase.auth.signOut()}
-          variant="ghost"
-          className="text-stone-400 hover:text-white"
-        >
-          Sign Out
-        </Button>
-      </header>
-
-      <main className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8 text-white">
         {/* Page Title */}
         <div>
           <h2 className="text-2xl font-bold text-white">Dashboard</h2>
@@ -117,7 +97,6 @@ export default function DashboardPage() {
             )}
           </Card>
         </div>
-      </main>
     </div>
   )
 }
