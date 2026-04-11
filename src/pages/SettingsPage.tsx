@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 
 export default function SettingsPage() {
-  const { settings, setSettings } = useSettings()
+  const { settings, setSettings, saveSettings } = useSettings()
   const { user } = useAuth()
   const [saved, setSaved] = useState(false)
   const [subAdminCanInvite, setSubAdminCanInvite] = useState(true)
@@ -39,7 +39,8 @@ export default function SettingsPage() {
     setTimeout(() => setAccessSaved(false), 2000)
   }
 
-  function handleSave() {
+  async function handleSave() {
+    await saveSettings()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

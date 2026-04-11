@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
 
 export type PayPeriodType = 'weekly' | 'biweekly' | 'semimonthly'
 
@@ -32,7 +34,7 @@ const defaultSettings: AppSettings = {
   payPeriod: { type: 'biweekly', weeklyStartDay: 1, biweeklyAnchor: new Date().toISOString().split('T')[0] },
 }
 
-function load(key: string, fallback: AppSettings): AppSettings {
+function loadFromStorage(key: string, fallback: AppSettings): AppSettings {
   try {
     const stored = JSON.parse(localStorage.getItem(key) ?? '')
     const merged = {
@@ -40,30 +42,66 @@ function load(key: string, fallback: AppSettings): AppSettings {
       pricing: { ...fallback.pricing, ...stored.pricing },
       payPeriod: { ...fallback.payPeriod, ...stored.payPeriod },
     }
-    // If old format fields exist, drop them
     delete (merged.payPeriod as Record<string, unknown>).startDate
     delete (merged.payPeriod as Record<string, unknown>).endDate
     return merged
   } catch { return fallback }
 }
 
+function mergeFromDB(row: Record<string, unknown>, fallback: AppSettings): AppSettings {
+  return {
+    company: { ...fallback.company, ...(row.company as object ?? {}) },
+    pricing: { ...fallback.pricing, ...(row.pricing as object ?? {}) },
+    payPeriod: { ...fallback.payPeriod, ...(row.pay_period as object ?? {}) },
+  }
+}
+
 type SettingsContextType = {
   settings: AppSettings
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>
+  saveSettings: () => Promise<void>
 }
 
 const SettingsContext = createContext<SettingsContextType | null>(null)
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>(() => load('rl_settings', defaultSettings))
+  const { user } = useAuth()
+  const [settings, setSettings] = useState<AppSettings>(() => loadFromStorage('rl_settings', defaultSettings))
 
-
+  // Hydrate from Supabase when org_id is available
   useEffect(() => {
-    localStorage.setItem('rl_settings', JSON.stringify(settings))
-  }, [settings])
+    if (!user?.org_id) return
+    supabase
+      .from('settings')
+      .select('company, pricing, pay_period')
+      .eq('org_id', user.org_id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const merged = mergeFromDB(data as Record<string, unknown>, defaultSettings)
+          setSettings(merged)
+          localStorage.setItem('rl_settings', JSON.stringify(merged))
+        }
+      })
+  }, [user?.org_id])
+
+  const saveSettings = useCallback(async () => {
+    if (!user?.org_id) return
+    const payload = {
+      org_id: user.org_id,
+      company: settings.company,
+      pricing: settings.pricing,
+      pay_period: settings.payPeriod,
+      updated_at: new Date().toISOString(),
+    }
+    const { error } = await supabase.from('settings').upsert(payload, { onConflict: 'org_id' })
+    if (!error) {
+      localStorage.setItem('rl_settings', JSON.stringify(settings))
+    }
+  }, [user?.org_id, settings])
 
   return (
-    <SettingsContext.Provider value={{ settings, setSettings }}>
+    <SettingsContext.Provider value={{ settings, setSettings, saveSettings }}>
       {children}
     </SettingsContext.Provider>
   )
