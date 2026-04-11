@@ -17,6 +17,7 @@ export type AppSettings = {
     laborPerSq: string
     tearoffRate: string
     hourlyRate: string
+    burdenPct: string
   }
   payPeriod: {
     type: PayPeriodType
@@ -27,7 +28,7 @@ export type AppSettings = {
 
 const defaultSettings: AppSettings = {
   company: { name: '', phone: '', email: '', address: '', license: '', website: '' },
-  pricing: { wastePct: '10', markupPct: '30', laborPerSq: '85', tearoffRate: '35', hourlyRate: '45' },
+  pricing: { wastePct: '10', markupPct: '30', laborPerSq: '85', tearoffRate: '35', hourlyRate: '45', burdenPct: '35' },
   payPeriod: { type: 'biweekly', weeklyStartDay: 1, biweeklyAnchor: new Date().toISOString().split('T')[0] },
 }
 

@@ -1,36 +1,104 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
 import { type Employee } from '@/types/employee'
 
 type EmployeeContextType = {
   employees: Employee[]
+  loading: boolean
+  addEmployee: (emp: Omit<Employee, 'id'>) => Promise<void>
+  updateEmployee: (updated: Employee) => Promise<void>
+  deleteEmployee: (id: string) => Promise<void>
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>
-  updateEmployee: (updated: Employee) => void
-  deleteEmployee: (id: string) => void
 }
 
 const EmployeeContext = createContext<EmployeeContextType | null>(null)
 
-function load<T>(key: string, fallback: T): T {
-  try { return JSON.parse(localStorage.getItem(key) ?? '') } catch { return fallback }
+function toEmployee(row: Record<string, unknown>): Employee {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? '',
+    phone: (row.phone as string) ?? '',
+    email: (row.email as string) ?? '',
+    role: (row.role as Employee['role']) ?? 'Employee',
+    hireDate: (row.hire_date as string) ?? '',
+    birthdate: (row.birthdate as string) ?? '',
+    status: (row.status as Employee['status']) ?? 'Active',
+    address: (row.address as string) ?? '',
+    emergencyContact: (row.emergency_contact as string) ?? '',
+    emergencyPhone: (row.emergency_phone as string) ?? '',
+    notes: (row.notes as string) ?? '',
+    profilePicture: (row.profile_picture as string) ?? '',
+  }
 }
 
 export function EmployeeProvider({ children }: { children: React.ReactNode }) {
-  const [employees, setEmployees] = useState<Employee[]>(() => load('rl_employees', []))
+  const { user } = useAuth()
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    localStorage.setItem('rl_employees', JSON.stringify(employees))
-  }, [employees])
+    if (!user?.org_id) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    supabase
+      .from('employees')
+      .select('*')
+      .eq('org_id', user.org_id)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (data) setEmployees(data.map(toEmployee))
+        setLoading(false)
+      })
+  }, [user?.org_id])
 
-  function updateEmployee(updated: Employee) {
-    setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e))
+  async function addEmployee(emp: Omit<Employee, 'id'>) {
+    if (!user?.org_id) return
+    const { data, error } = await supabase.from('employees').insert({
+      org_id: user.org_id,
+      name: emp.name,
+      phone: emp.phone,
+      email: emp.email,
+      role: emp.role,
+      hire_date: emp.hireDate,
+      birthdate: emp.birthdate,
+      status: emp.status,
+      address: emp.address,
+      emergency_contact: emp.emergencyContact,
+      emergency_phone: emp.emergencyPhone,
+      notes: emp.notes,
+      profile_picture: emp.profilePicture,
+    }).select().single()
+    if (data && !error) setEmployees(prev => [...prev, toEmployee(data)])
   }
 
-  function deleteEmployee(id: string) {
-    setEmployees(prev => prev.filter(e => e.id !== id))
+  async function updateEmployee(updated: Employee) {
+    const { error } = await supabase.from('employees').update({
+      name: updated.name,
+      phone: updated.phone,
+      email: updated.email,
+      role: updated.role,
+      hire_date: updated.hireDate,
+      birthdate: updated.birthdate,
+      status: updated.status,
+      address: updated.address,
+      emergency_contact: updated.emergencyContact,
+      emergency_phone: updated.emergencyPhone,
+      notes: updated.notes,
+      profile_picture: updated.profilePicture,
+    }).eq('id', updated.id)
+    if (!error) setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e))
+  }
+
+  async function deleteEmployee(id: string) {
+    const { error } = await supabase.from('employees').delete().eq('id', id)
+    if (!error) setEmployees(prev => prev.filter(e => e.id !== id))
   }
 
   return (
-    <EmployeeContext.Provider value={{ employees, setEmployees, updateEmployee, deleteEmployee }}>
+    <EmployeeContext.Provider value={{ employees, loading, addEmployee, updateEmployee, deleteEmployee, setEmployees }}>
       {children}
     </EmployeeContext.Provider>
   )

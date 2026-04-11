@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSettings, getPayPeriodRange } from '@/context/SettingsContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useEmployees } from '@/context/EmployeeContext'
 import { useTimeClock } from '@/context/TimeClockContext'
+import { useAuth } from '@/context/AuthContext'
 import { type TimeEntry, calcHours, fmtTime, fmtHours } from '@/types/timeclock'
-import LocationMap from '@/components/LocationMap'
 
 async function getLocation(): Promise<{ lat: number; lng: number } | null> {
   return new Promise(resolve => {
@@ -28,16 +28,50 @@ export default function TimeClockPage() {
   const { settings } = useSettings()
   const payPeriod = getPayPeriodRange(settings)
   const { employees } = useEmployees()
-  const { entries, setEntries, updateEntry } = useTimeClock()
+  const { entries, addEntry, updateEntry, updateLocation } = useTimeClock()
+  const { user, can } = useAuth()
   const [editModal, setEditModal] = useState<TimeEntry | null>(null)
   const [editNote, setEditNote] = useState('')
   const [editIn, setEditIn] = useState('')
   const [editOut, setEditOut] = useState('')
   const [locating, setLocating] = useState<string | null>(null)
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const isManager = can('manage:timeclock')
+  const canApproveEdits = can('approve:edits')
+
+  // For Laborer/Employee, only show their own employee record
+  const myEmployee = employees.find(e => e.email === user?.email)
+  const visibleEmployees = isManager ? employees.filter(e => e.status === 'Active') : (myEmployee ? [myEmployee] : [])
 
   const todayEntries = entries.filter(e => e.date === today)
   const activeEntries = entries.filter(e => e.status === 'active' || e.status === 'on_lunch')
   const pendingEdits = entries.filter(e => e.status === 'pending_edit')
+
+  // Continuous GPS polling every 2 minutes for all clocked-in employees
+  const activeEntriesRef = useRef(activeEntries)
+  useEffect(() => { activeEntriesRef.current = activeEntries }, [activeEntries])
+
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    const poll = () => {
+      activeEntriesRef.current.forEach(entry => {
+        navigator.geolocation.getCurrentPosition(
+          pos => updateLocation(entry.id, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => {},
+          { timeout: 8000 }
+        )
+      })
+    }
+    poll()
+    const id = setInterval(poll, 2 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [updateLocation])
 
   function getEntryForEmployee(empId: string) {
     const active = todayEntries.find(e => e.employeeId === empId && (e.status === 'active' || e.status === 'on_lunch' || e.status === 'pending_edit'))
@@ -49,8 +83,7 @@ export default function TimeClockPage() {
     setLocating(emp.id)
     const location = await getLocation()
     setLocating(null)
-    const entry: TimeEntry = {
-      id: crypto.randomUUID(),
+    await addEntry({
       employeeId: emp.id,
       employeeName: emp.name,
       clockIn: new Date().toISOString(),
@@ -59,13 +92,14 @@ export default function TimeClockPage() {
       lunchEnd: null,
       clockInLocation: location,
       clockOutLocation: null,
+      currentLocation: location,
+      locationUpdatedAt: location ? new Date().toISOString() : null,
       status: 'active',
       editRequest: null,
       editedClockIn: null,
       editedClockOut: null,
       date: today,
-    }
-    setEntries(prev => [...prev, entry])
+    })
   }
 
   async function clockOut(entry: TimeEntry) {
@@ -75,12 +109,12 @@ export default function TimeClockPage() {
     updateEntry({ ...entry, clockOut: new Date().toISOString(), clockOutLocation: location, status: 'completed' })
   }
 
-  function startLunch(entry: TimeEntry) {
-    updateEntry({ ...entry, lunchStart: new Date().toISOString(), status: 'on_lunch' })
+  async function startLunch(entry: TimeEntry) {
+    await updateEntry({ ...entry, lunchStart: new Date().toISOString(), status: 'on_lunch' })
   }
 
-  function endLunch(entry: TimeEntry) {
-    updateEntry({ ...entry, lunchEnd: new Date().toISOString(), status: 'active' })
+  async function endLunch(entry: TimeEntry) {
+    await updateEntry({ ...entry, lunchEnd: new Date().toISOString(), status: 'active' })
   }
 
   function openEditRequest(entry: TimeEntry) {
@@ -90,14 +124,14 @@ export default function TimeClockPage() {
     setEditOut(entry.clockOut?.slice(0, 16) ?? '')
   }
 
-  function submitEditRequest() {
+  async function submitEditRequest() {
     if (!editModal) return
-    updateEntry({ ...editModal, status: 'pending_edit', editRequest: editNote, editedClockIn: editIn, editedClockOut: editOut || null })
+    await updateEntry({ ...editModal, status: 'pending_edit', editRequest: editNote, editedClockIn: editIn, editedClockOut: editOut || null })
     setEditModal(null)
   }
 
-  function approveEdit(entry: TimeEntry) {
-    updateEntry({
+  async function approveEdit(entry: TimeEntry) {
+    await updateEntry({
       ...entry,
       clockIn: entry.editedClockIn ?? entry.clockIn,
       clockOut: entry.editedClockOut ?? entry.clockOut,
@@ -108,8 +142,8 @@ export default function TimeClockPage() {
     })
   }
 
-  function denyEdit(entry: TimeEntry) {
-    updateEntry({ ...entry, status: 'completed', editRequest: null, editedClockIn: null, editedClockOut: null })
+  async function denyEdit(entry: TimeEntry) {
+    await updateEntry({ ...entry, status: 'completed', editRequest: null, editedClockIn: null, editedClockOut: null })
   }
 
   function getPeriodHours(empId: string): number {
@@ -125,34 +159,43 @@ export default function TimeClockPage() {
         <p className="text-stone-400 text-sm mt-1">Track employee hours with GPS location.</p>
       </div>
 
-      {/* Live View — Who's Clocked In */}
+{/* Live View — Who's Clocked In */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-3">Currently Clocked In</h3>
         {activeEntries.length === 0 ? (
           <p className="text-stone-500 text-sm">No one is clocked in right now.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeEntries.map(entry => (
-              <Card key={entry.id} className="bg-stone-900 border-stone-800 text-white">
-                <CardContent className="pt-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <button onClick={() => navigate(`/employees/${entry.employeeId}`)} className="font-semibold text-white hover:text-emerald-400 transition-colors">{entry.employeeName}</button>
-                    <span className={`text-xs px-2 py-1 rounded font-medium ${entry.status === 'on_lunch' ? 'bg-yellow-900 text-yellow-300' : 'bg-emerald-900 text-emerald-300'}`}>
-                      {entry.status === 'on_lunch' ? 'On Lunch' : 'Clocked In'}
-                    </span>
-                  </div>
-                  <p className="text-stone-400 text-sm">In: {fmtTime(entry.clockIn)}</p>
-                  <p className="text-emerald-400 text-sm font-mono">{fmtHours(calcHours(entry))} elapsed</p>
-                  {entry.clockInLocation && (
-                    <LocationMap
-                      lat={entry.clockInLocation.lat}
-                      lng={entry.clockInLocation.lng}
-                      label={`${entry.employeeName} clocked in at ${fmtTime(entry.clockIn)}`}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+            {activeEntries.map(entry => {
+              const locLabel = entry.currentLocation
+                ? `Last updated ${fmtTime(entry.locationUpdatedAt)}`
+                : entry.clockInLocation ? `Clock-in location` : null
+              return (
+                <Card key={entry.id} className="bg-stone-900 border-stone-800 text-white">
+                  <CardContent className="pt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => navigate(`/employees/${entry.employeeId}`)} className="font-semibold text-white hover:text-emerald-400 transition-colors">{entry.employeeName}</button>
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${entry.status === 'on_lunch' ? 'bg-yellow-900 text-yellow-300' : 'bg-emerald-900 text-emerald-300'}`}>
+                        {entry.status === 'on_lunch' ? 'On Lunch' : 'Clocked In'}
+                      </span>
+                    </div>
+                    <p className="text-stone-400 text-sm">In: {fmtTime(entry.clockIn)}</p>
+                    <p className="text-emerald-400 text-sm font-mono">{fmtHours(calcHours(entry))} elapsed</p>
+                    {entry.status === 'on_lunch' && entry.lunchStart && (() => {
+                      const ms = now - new Date(entry.lunchStart).getTime()
+                      const mins = Math.floor(ms / 60000)
+                      const secs = Math.floor((ms % 60000) / 1000)
+                      return (
+                        <p className="text-yellow-400 text-sm font-mono">
+                          Lunch: {mins}m {secs}s
+                        </p>
+                      )
+                    })()}
+                    {locLabel && <p className="text-stone-500 text-xs">{locLabel}</p>}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -177,7 +220,7 @@ export default function TimeClockPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.filter(e => e.status === 'Active').map(emp => {
+                  {visibleEmployees.map(emp => {
                     const entry = getEntryForEmployee(emp.id)
                     const isLocating = locating === emp.id
                     return (
@@ -242,7 +285,7 @@ export default function TimeClockPage() {
       </div>
 
       {/* Weekly Summary */}
-      {employees.filter(e => e.status === 'Active').length > 0 && (
+      {visibleEmployees.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold text-white mb-3">Pay Period Summary <span className="text-stone-500 text-sm font-normal">({payPeriod.start} – {payPeriod.end})</span></h3>
           <Card className="bg-stone-900 border-stone-800 text-white">
@@ -257,7 +300,7 @@ export default function TimeClockPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.filter(e => e.status === 'Active').map(emp => {
+                  {visibleEmployees.map(emp => {
                     const weekHours = getPeriodHours(emp.id)
                     const activeNow = activeEntries.find(e => e.employeeId === emp.id)
                     return (
@@ -285,7 +328,7 @@ export default function TimeClockPage() {
       )}
 
       {/* Admin — Pending Edit Requests */}
-      {pendingEdits.length > 0 && (
+      {canApproveEdits && pendingEdits.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold text-white mb-3">Pending Edit Requests</h3>
           <div className="space-y-3">

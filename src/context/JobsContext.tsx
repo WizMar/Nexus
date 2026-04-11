@@ -1,0 +1,115 @@
+import { createContext, useContext, useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
+import type { Job } from '@/types/job'
+
+type JobsContextType = {
+  jobs: Job[]
+  loading: boolean
+  addJob: (job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
+  updateJob: (job: Job) => Promise<void>
+  deleteJob: (id: string) => Promise<void>
+}
+
+const JobsContext = createContext<JobsContextType | null>(null)
+
+function toJob(row: Record<string, unknown>): Job {
+  return {
+    id: row.id as string,
+    title: (row.title as string) ?? '',
+    client: {
+      name: (row.client_name as string) ?? '',
+      phone: (row.client_phone as string) ?? '',
+      email: (row.client_email as string) ?? '',
+    },
+    address: (row.address as string) ?? '',
+    type: (row.type as Job['type']) ?? 'General',
+    status: (row.status as Job['status']) ?? 'Draft',
+    leadId: (row.lead_id as string) ?? null,
+    crewIds: (row.crew_ids as string[]) ?? [],
+    notes: (row.notes as string) ?? '',
+    scope: (row.scope as string) ?? '',
+    scheduledDate: (row.scheduled_date as string) ?? '',
+    createdAt: (row.created_at as string) ?? '',
+    updatedAt: (row.updated_at as string) ?? '',
+  }
+}
+
+export function JobsProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user?.org_id) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    supabase
+      .from('jobs')
+      .select('*')
+      .eq('org_id', user.org_id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setJobs(data.map(toJob))
+        setLoading(false)
+      })
+  }, [user?.org_id])
+
+  async function addJob(job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) {
+    if (!user?.org_id) return
+    const { data, error } = await supabase.from('jobs').insert({
+      org_id: user.org_id,
+      title: job.title,
+      client_name: job.client.name,
+      client_phone: job.client.phone,
+      client_email: job.client.email,
+      address: job.address,
+      type: job.type,
+      status: job.status,
+      lead_id: job.leadId || null,
+      crew_ids: job.crewIds,
+      notes: job.notes,
+      scope: job.scope,
+      scheduled_date: job.scheduledDate,
+    }).select().single()
+    if (data && !error) setJobs(prev => [toJob(data), ...prev])
+  }
+
+  async function updateJob(job: Job) {
+    const { error } = await supabase.from('jobs').update({
+      title: job.title,
+      client_name: job.client.name,
+      client_phone: job.client.phone,
+      client_email: job.client.email,
+      address: job.address,
+      type: job.type,
+      status: job.status,
+      lead_id: job.leadId || null,
+      crew_ids: job.crewIds,
+      notes: job.notes,
+      scope: job.scope,
+      scheduled_date: job.scheduledDate,
+      updated_at: new Date().toISOString(),
+    }).eq('id', job.id)
+    if (!error) setJobs(prev => prev.map(j => j.id === job.id ? job : j))
+  }
+
+  async function deleteJob(id: string) {
+    const { error } = await supabase.from('jobs').delete().eq('id', id)
+    if (!error) setJobs(prev => prev.filter(j => j.id !== id))
+  }
+
+  return (
+    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, deleteJob }}>
+      {children}
+    </JobsContext.Provider>
+  )
+}
+
+export function useJobs() {
+  const ctx = useContext(JobsContext)
+  if (!ctx) throw new Error('useJobs must be used inside JobsProvider')
+  return ctx
+}

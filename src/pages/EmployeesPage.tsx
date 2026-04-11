@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,14 +8,88 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { type Employee, emptyEmployee, roleColors, statusColors } from '@/types/employee'
 import { useEmployees } from '@/context/EmployeeContext'
+import { useAuth, type UserRole } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
+
+const ADMIN_INVITE_ROLES: UserRole[] = ['Sub-Admin', 'Sales', 'Lead', 'Employee', 'Laborer']
+const SUB_ADMIN_INVITE_ROLES: UserRole[] = ['Sales', 'Lead', 'Employee', 'Laborer']
 
 export default function EmployeesPage() {
   const navigate = useNavigate()
-  const { employees, setEmployees } = useEmployees()
+  const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmployees()
+  const { user, can } = useAuth()
   const [open, setOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Employee | null>(null)
   const [form, setForm] = useState(emptyEmployee)
   const [search, setSearch] = useState('')
+
+  // Invite state
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<UserRole>('Employee')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+
+  const [inviteError, setInviteError] = useState('')
+  const [subAdminCanInvite, setSubAdminCanInvite] = useState(true)
+
+  useEffect(() => {
+    if (user?.org_id) {
+      supabase
+        .from('organizations')
+        .select('sub_admin_can_invite')
+        .eq('id', user.org_id)
+        .single()
+        .then(({ data }) => {
+          if (data) setSubAdminCanInvite(data.sub_admin_can_invite)
+        })
+    }
+  }, [user?.org_id])
+
+  const canInvite = can('invite:members') && (user?.role === 'Admin' || subAdminCanInvite)
+  const inviteRoles = user?.role === 'Admin' ? ADMIN_INVITE_ROLES : SUB_ADMIN_INVITE_ROLES
+
+  function openInvite() {
+    setInviteEmail('')
+    setInviteRole('Employee')
+    setInviteLink(null)
+
+    setInviteError('')
+    setInviteOpen(true)
+  }
+
+  async function handleInvite() {
+    if (!inviteEmail || !user?.org_id) {
+      setInviteError('Could not load your organization. Try signing out and back in.')
+      setInviteLoading(false)
+      return
+    }
+    setInviteLoading(true)
+    setInviteError('')
+    setInviteLink(null)
+
+    const { data, error } = await supabase
+      .from('invitations')
+      .insert({
+        org_id: user.org_id,
+        email: inviteEmail,
+        role: inviteRole,
+        invited_by: user.id,
+      })
+      .select('token')
+      .single()
+
+    if (error || !data) {
+      setInviteError(error?.message ?? 'Failed to create invitation')
+      setInviteLoading(false)
+      return
+    }
+
+    const link = `${window.location.origin}/invite?token=${data.token}`
+
+    setInviteLink(link)
+    setInviteLoading(false)
+  }
 
   function openAdd() {
     setEditTarget(null)
@@ -29,27 +103,31 @@ export default function EmployeesPage() {
     setOpen(true)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name) return
     if (editTarget) {
-      setEmployees(prev => prev.map(e => e.id === editTarget.id ? { ...editTarget, ...form } : e))
+      await updateEmployee({ ...editTarget, ...form })
     } else {
-      setEmployees(prev => [...prev, { id: crypto.randomUUID(), ...form }])
+      await addEmployee(form)
     }
     setOpen(false)
   }
 
-  function toggleStatus(id: string) {
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, status: e.status === 'Active' ? 'Inactive' : 'Active' } : e))
+  async function toggleStatus(id: string) {
+    const emp = employees.find(e => e.id === id)
+    if (!emp) return
+    await updateEmployee({ ...emp, status: emp.status === 'Active' ? 'Inactive' : 'Active' })
   }
 
-  function archiveEmployee(id: string) {
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, status: 'Archived' } : e))
+  async function archiveEmployee(id: string) {
+    const emp = employees.find(e => e.id === id)
+    if (!emp) return
+    await updateEmployee({ ...emp, status: 'Archived' })
   }
 
-  function deleteEmployee(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this employee? This cannot be undone.')) return
-    setEmployees(prev => prev.filter(e => e.id !== id))
+    await deleteEmployee(id)
   }
 
   const filtered = employees.filter(e =>
@@ -64,9 +142,16 @@ export default function EmployeesPage() {
           <h2 className="text-2xl font-bold text-white">Employees</h2>
           <p className="text-stone-400 text-sm mt-1">Manage your team members and their roles.</p>
         </div>
-        <Button onClick={openAdd} className="bg-emerald-600 hover:bg-emerald-500 text-white">
-          + Add Employee
-        </Button>
+        <div className="flex gap-2">
+          {canInvite && (
+            <Button onClick={openInvite} variant="outline" className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white">
+              Invite Member
+            </Button>
+          )}
+          <Button onClick={openAdd} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+            + Add Employee
+          </Button>
+        </div>
       </div>
 
       <Input
@@ -126,7 +211,7 @@ export default function EmployeesPage() {
                         {emp.status === 'Active' ? 'Deactivate' : 'Activate'}
                       </button>
                       <button onClick={() => archiveEmployee(emp.id)} className="text-yellow-500 hover:text-yellow-400 text-xs underline">Archive</button>
-                      <button onClick={() => deleteEmployee(emp.id)} className="text-red-500 hover:text-red-400 text-xs underline">Delete</button>
+                      <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:text-red-400 text-xs underline">Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -135,6 +220,68 @@ export default function EmployeesPage() {
           </CardContent>
         )}
       </Card>
+
+      {/* Invite Member Dialog */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="bg-stone-900 border-stone-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Invite Team Member</DialogTitle>
+          </DialogHeader>
+          {inviteLink ? (
+            <div className="space-y-4 py-2">
+              <p className="text-stone-400 text-sm">Share this link with your team member:</p>
+              <div className="bg-stone-800 rounded-lg p-3 break-all text-emerald-400 text-sm font-mono">
+                {inviteLink}
+              </div>
+              <Button
+                onClick={() => { navigator.clipboard.writeText(inviteLink) }}
+                variant="outline"
+                className="w-full border-stone-700 text-stone-300 hover:text-white"
+              >
+                Copy Link
+              </Button>
+              <p className="text-stone-500 text-xs text-center">Link expires in 7 days.</p>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-stone-300">Email Address</Label>
+                <Input
+                  type="email"
+                  placeholder="teammate@example.com"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-stone-300">Role</Label>
+                <Select value={inviteRole} onValueChange={val => setInviteRole(val as UserRole)}>
+                  <SelectTrigger className="bg-stone-800 border-stone-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-stone-800 border-stone-700 text-white">
+                    {inviteRoles.map(role => (
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {inviteError && <p className="text-red-400 text-sm">{inviteError}</p>}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setInviteOpen(false)} className="text-stone-400 hover:text-white">
+              {inviteLink ? 'Close' : 'Cancel'}
+            </Button>
+            {!inviteLink && (
+              <Button onClick={handleInvite} className="bg-emerald-600 hover:bg-emerald-500 text-white" disabled={inviteLoading || !inviteEmail}>
+                {inviteLoading ? 'Creating...' : 'Send Invite'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add / Edit Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -168,8 +315,11 @@ export default function EmployeesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-stone-800 border-stone-700 text-white">
+                    <SelectItem value="Laborer">Laborer</SelectItem>
                     <SelectItem value="Employee">Employee</SelectItem>
+                    <SelectItem value="Lead">Lead</SelectItem>
                     <SelectItem value="Sales">Sales</SelectItem>
+                    <SelectItem value="Sub-Admin">Sub-Admin</SelectItem>
                     <SelectItem value="Admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>

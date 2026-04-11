@@ -13,6 +13,8 @@ export type TimeEntry = {
   lunchEnd: string | null
   clockInLocation: GpsLocation | null
   clockOutLocation: GpsLocation | null
+  currentLocation: GpsLocation | null
+  locationUpdatedAt: string | null
   status: 'active' | 'on_lunch' | 'completed' | 'pending_edit' | 'approved'
   editRequest: string | null
   editedClockIn: string | null

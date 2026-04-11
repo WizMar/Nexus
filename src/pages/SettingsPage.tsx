@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -6,10 +6,38 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSettings, getPayPeriodRange, type PayPeriodType, DAY_NAMES } from '@/context/SettingsContext'
+import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
 
 export default function SettingsPage() {
   const { settings, setSettings } = useSettings()
+  const { user } = useAuth()
   const [saved, setSaved] = useState(false)
+  const [subAdminCanInvite, setSubAdminCanInvite] = useState(true)
+  const [accessSaved, setAccessSaved] = useState(false)
+
+  useEffect(() => {
+    if (user?.org_id) {
+      supabase
+        .from('organizations')
+        .select('sub_admin_can_invite')
+        .eq('id', user.org_id)
+        .single()
+        .then(({ data }) => {
+          if (data) setSubAdminCanInvite(data.sub_admin_can_invite)
+        })
+    }
+  }, [user?.org_id])
+
+  async function saveAccessSettings() {
+    if (!user?.org_id) return
+    await supabase
+      .from('organizations')
+      .update({ sub_admin_can_invite: subAdminCanInvite })
+      .eq('id', user.org_id)
+    setAccessSaved(true)
+    setTimeout(() => setAccessSaved(false), 2000)
+  }
 
   function handleSave() {
     setSaved(true)
@@ -30,6 +58,7 @@ export default function SettingsPage() {
           <TabsTrigger value="company" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Company</TabsTrigger>
           <TabsTrigger value="pricing" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Pricing Defaults</TabsTrigger>
           <TabsTrigger value="payperiod" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Pay Period</TabsTrigger>
+          <TabsTrigger value="access" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Team Access</TabsTrigger>
           <TabsTrigger value="subscription" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Subscription</TabsTrigger>
         </TabsList>
 
@@ -114,6 +143,12 @@ export default function SettingsPage() {
                   <Input type="number" value={pricing.hourlyRate} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, hourlyRate: e.target.value } }))}
                     className="bg-stone-800 border-stone-700 text-white" />
                 </div>
+                <div className="space-y-2">
+                  <Label className="text-stone-300">Labor Burden %</Label>
+                  <p className="text-stone-500 text-xs">Payroll taxes, workers' comp, insurance applied on top of labor.</p>
+                  <Input type="number" value={pricing.burdenPct} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, burdenPct: e.target.value } }))}
+                    className="bg-stone-800 border-stone-700 text-white" />
+                </div>
               </div>
               <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white">
                 {saved ? 'Saved!' : 'Save Changes'}
@@ -182,6 +217,33 @@ export default function SettingsPage() {
               </div>
               <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white">
                 {saved ? 'Saved!' : 'Save Changes'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Team Access */}
+        <TabsContent value="access">
+          <Card className="bg-stone-900 border-stone-800 text-white">
+            <CardHeader>
+              <CardTitle className="text-white">Team Access</CardTitle>
+              <CardDescription className="text-stone-400">Control who can invite new members to your organization.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between py-3 border-b border-stone-800">
+                <div>
+                  <p className="text-white text-sm font-medium">Allow Sub-Admins to invite members</p>
+                  <p className="text-stone-500 text-xs mt-0.5">When enabled, Sub-Admins can invite Sales, Lead, Employee, and Laborer roles.</p>
+                </div>
+                <button
+                  onClick={() => setSubAdminCanInvite(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${subAdminCanInvite ? 'bg-emerald-600' : 'bg-stone-700'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${subAdminCanInvite ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              <Button onClick={saveAccessSettings} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                {accessSaved ? 'Saved!' : 'Save Changes'}
               </Button>
             </CardContent>
           </Card>
