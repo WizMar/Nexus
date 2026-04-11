@@ -1,20 +1,67 @@
 import { useState, useEffect } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ChevronRight, ArrowLeft, Building2, DollarSign, Calendar, Shield, Bell, CreditCard, AlertTriangle, Check } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useSettings, getPayPeriodRange, type PayPeriodType, DAY_NAMES } from '@/context/SettingsContext'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 
+const TRADES = [
+  'Roofing', 'HVAC', 'Plumbing', 'Electrical', 'General Contractor',
+  'Landscaping', 'Painting', 'Flooring', 'Concrete', 'Fencing', 'Other',
+]
+
+const TIMEZONES = [
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HT)' },
+]
+
+const ROLE_MATRIX = [
+  { label: 'Dashboard',        actions: [true,  true,  true,  true,  false, false] },
+  { label: 'Time Clock',       actions: [true,  true,  true,  true,  true,  true ] },
+  { label: 'Manage Time',      actions: [true,  true,  true,  false, false, false] },
+  { label: 'Approve Edits',    actions: [true,  true,  false, false, false, false] },
+  { label: 'View All Jobs',    actions: [true,  true,  true,  true,  false, false] },
+  { label: 'Create Jobs',      actions: [true,  true,  false, true,  false, false] },
+  { label: 'Estimates',        actions: [true,  false, false, true,  false, false] },
+  { label: 'Employees',        actions: [true,  true,  false, false, false, false] },
+  { label: 'Invite Members',   actions: [true,  true,  false, false, false, false] },
+  { label: 'Settings',         actions: [true,  false, false, false, false, false] },
+]
+
+const ROLE_NAMES = ['Admin', 'Sub-Admin', 'Lead', 'Sales', 'Employee', 'Laborer']
+
+type Section = 'company' | 'pricing' | 'payperiod' | 'roles' | 'notifications' | 'subscription' | 'danger'
+
+const SECTIONS: { id: Section; label: string; description: string; icon: React.ElementType }[] = [
+  { id: 'company',       label: 'Company',          description: 'Business info, branding & trade',    icon: Building2     },
+  { id: 'pricing',       label: 'Pricing Defaults', description: 'Markup, waste & labor rates',        icon: DollarSign    },
+  { id: 'payperiod',     label: 'Pay Period',        description: 'Pay cycle & schedule',               icon: Calendar      },
+  { id: 'roles',         label: 'Roles & Access',   description: 'Permissions & team access controls', icon: Shield        },
+  { id: 'notifications', label: 'Notifications',    description: 'Email & push preferences',           icon: Bell          },
+  { id: 'subscription',  label: 'Subscription',     description: 'Plan & billing',                     icon: CreditCard    },
+  { id: 'danger',        label: 'Danger Zone',      description: 'Account & data management',          icon: AlertTriangle },
+]
+
 export default function SettingsPage() {
   const { settings, setSettings, saveSettings } = useSettings()
   const { user } = useAuth()
+  const [activeSection, setActiveSection] = useState<Section | null>(null)
   const [saved, setSaved] = useState(false)
   const [subAdminCanInvite, setSubAdminCanInvite] = useState(true)
   const [accessSaved, setAccessSaved] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteInput, setDeleteInput] = useState('')
 
   useEffect(() => {
     if (user?.org_id) {
@@ -29,6 +76,12 @@ export default function SettingsPage() {
     }
   }, [user?.org_id])
 
+  async function handleSave() {
+    await saveSettings()
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
   async function saveAccessSettings() {
     if (!user?.org_id) return
     await supabase
@@ -39,252 +92,504 @@ export default function SettingsPage() {
     setTimeout(() => setAccessSaved(false), 2000)
   }
 
-  async function handleSave() {
-    await saveSettings()
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const { company, pricing, payPeriod, notifications } = settings
+
+  function set<K extends keyof typeof settings>(section: K, key: string, value: string) {
+    setSettings(s => ({ ...s, [section]: { ...(s[section] as object), [key]: value } }))
   }
 
-  const { company, pricing, payPeriod } = settings
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-6 text-white">
-      <div>
-        <h2 className="text-2xl font-bold text-white">Settings</h2>
-        <p className="text-stone-400 text-sm mt-1">Manage your company info and default pricing.</p>
+  // ── Main section list ────────────────────────────────────────────────────
+  if (!activeSection) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Settings</h2>
+          <p className="text-stone-400 text-sm mt-1">Manage your company, team, and preferences.</p>
+        </div>
+        <div className="space-y-2">
+          {SECTIONS.map(({ id, label, description, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveSection(id)}
+              className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left
+                ${id === 'danger'
+                  ? 'border-red-900/50 bg-stone-900 hover:border-red-700 hover:bg-red-950/20'
+                  : 'border-stone-800 bg-stone-900 hover:border-stone-600 hover:bg-stone-800'}`}
+            >
+              <div className={`p-2 rounded-lg ${id === 'danger' ? 'bg-red-950 text-red-400' : 'bg-stone-800 text-emerald-400'}`}>
+                <Icon size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${id === 'danger' ? 'text-red-400' : 'text-white'}`}>{label}</p>
+                <p className="text-stone-500 text-xs mt-0.5">{description}</p>
+              </div>
+              <ChevronRight size={16} className="text-stone-600 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
       </div>
+    )
+  }
 
-      <Tabs defaultValue="company">
-        <TabsList className="bg-stone-800 border border-stone-700">
-          <TabsTrigger value="company" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Company</TabsTrigger>
-          <TabsTrigger value="pricing" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Pricing Defaults</TabsTrigger>
-          <TabsTrigger value="payperiod" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Pay Period</TabsTrigger>
-          <TabsTrigger value="access" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Team Access</TabsTrigger>
-          <TabsTrigger value="subscription" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-stone-400">Subscription</TabsTrigger>
-        </TabsList>
+  // ── Section header (back button) ─────────────────────────────────────────
+  const currentSection = SECTIONS.find(s => s.id === activeSection)!
 
-        {/* Company Info */}
-        <TabsContent value="company">
-          <Card className="bg-stone-900 border-stone-800 text-white">
-            <CardHeader>
-              <CardTitle className="text-white">Company Information</CardTitle>
-              <CardDescription className="text-stone-400">This info will appear on estimates and documents.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+  function SectionHeader() {
+    return (
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => setActiveSection(null)}
+          className="p-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 transition-colors"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <div>
+          <h2 className="text-xl font-bold text-white">{currentSection.label}</h2>
+          <p className="text-stone-400 text-xs">{currentSection.description}</p>
+        </div>
+      </div>
+    )
+  }
+
+  function SaveButton() {
+    return (
+      <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white mt-2">
+        {saved ? <><Check size={14} className="mr-1.5" />Saved</> : 'Save Changes'}
+      </Button>
+    )
+  }
+
+  // ── Company ──────────────────────────────────────────────────────────────
+  if (activeSection === 'company') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <Accordion type="multiple" defaultValue={['info', 'branding', 'trade']} className="space-y-3">
+
+          <AccordionItem value="info" className="bg-stone-900 border border-stone-800 rounded-xl px-4">
+            <AccordionTrigger className="text-white font-medium hover:no-underline py-4">Business Info</AccordionTrigger>
+            <AccordionContent className="pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Company Name</Label>
-                  <Input value={company.name} onChange={e => setSettings(s => ({ ...s, company: { ...s.company, name: e.target.value } }))}
-                    placeholder="Acme Roofing" className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Phone</Label>
-                  <Input value={company.phone} onChange={e => setSettings(s => ({ ...s, company: { ...s.company, phone: e.target.value } }))}
-                    placeholder="(555) 000-0000" className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Email</Label>
-                  <Input value={company.email} onChange={e => setSettings(s => ({ ...s, company: { ...s.company, email: e.target.value } }))}
-                    placeholder="info@company.com" className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">License #</Label>
-                  <Input value={company.license} onChange={e => setSettings(s => ({ ...s, company: { ...s.company, license: e.target.value } }))}
-                    placeholder="CA C-39 #000000" className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500" />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label className="text-stone-300">Address</Label>
-                  <Input value={company.address} onChange={e => setSettings(s => ({ ...s, company: { ...s.company, address: e.target.value } }))}
-                    placeholder="123 Main St, City, CA 00000" className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500" />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label className="text-stone-300">Website</Label>
-                  <Input value={company.website} onChange={e => setSettings(s => ({ ...s, company: { ...s.company, website: e.target.value } }))}
-                    placeholder="https://yourcompany.com" className="bg-stone-800 border-stone-700 text-white placeholder:text-stone-500" />
-                </div>
+                <Field label="Company Name">
+                  <Input value={company.name} onChange={e => set('company', 'name', e.target.value)} placeholder="Acme Roofing" />
+                </Field>
+                <Field label="Phone">
+                  <Input value={company.phone} onChange={e => set('company', 'phone', e.target.value)} placeholder="(555) 000-0000" />
+                </Field>
+                <Field label="Email">
+                  <Input value={company.email} onChange={e => set('company', 'email', e.target.value)} placeholder="info@company.com" />
+                </Field>
+                <Field label="License #">
+                  <Input value={company.license} onChange={e => set('company', 'license', e.target.value)} placeholder="CA C-39 #000000" />
+                </Field>
+                <Field label="Address" className="sm:col-span-2">
+                  <Input value={company.address} onChange={e => set('company', 'address', e.target.value)} placeholder="123 Main St, City, CA 00000" />
+                </Field>
+                <Field label="Website" className="sm:col-span-2">
+                  <Input value={company.website} onChange={e => set('company', 'website', e.target.value)} placeholder="https://yourcompany.com" />
+                </Field>
               </div>
-              <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white">
-                {saved ? 'Saved!' : 'Save Changes'}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <SaveButton />
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Pricing Defaults */}
-        <TabsContent value="pricing">
-          <Card className="bg-stone-900 border-stone-800 text-white">
-            <CardHeader>
-              <CardTitle className="text-white">Pricing Defaults</CardTitle>
-              <CardDescription className="text-stone-400">Default values used when creating new estimates.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Waste %</Label>
-                  <Input type="number" value={pricing.wastePct} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, wastePct: e.target.value } }))}
-                    className="bg-stone-800 border-stone-700 text-white" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Markup %</Label>
-                  <Input type="number" value={pricing.markupPct} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, markupPct: e.target.value } }))}
-                    className="bg-stone-800 border-stone-700 text-white" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Labor per Square ($)</Label>
-                  <Input type="number" value={pricing.laborPerSq} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, laborPerSq: e.target.value } }))}
-                    className="bg-stone-800 border-stone-700 text-white" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Tear-off Rate per Square ($)</Label>
-                  <Input type="number" value={pricing.tearoffRate} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, tearoffRate: e.target.value } }))}
-                    className="bg-stone-800 border-stone-700 text-white" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Hourly Rate ($)</Label>
-                  <Input type="number" value={pricing.hourlyRate} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, hourlyRate: e.target.value } }))}
-                    className="bg-stone-800 border-stone-700 text-white" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Labor Burden %</Label>
-                  <p className="text-stone-500 text-xs">Payroll taxes, workers' comp, insurance applied on top of labor.</p>
-                  <Input type="number" value={pricing.burdenPct} onChange={e => setSettings(s => ({ ...s, pricing: { ...s.pricing, burdenPct: e.target.value } }))}
-                    className="bg-stone-800 border-stone-700 text-white" />
-                </div>
+          <AccordionItem value="branding" className="bg-stone-900 border border-stone-800 rounded-xl px-4">
+            <AccordionTrigger className="text-white font-medium hover:no-underline py-4">Branding</AccordionTrigger>
+            <AccordionContent className="pb-4">
+              <div className="space-y-4">
+                <Field label="Logo URL" hint="Paste a direct link to your company logo (PNG or SVG recommended).">
+                  <Input value={company.logoUrl} onChange={e => set('company', 'logoUrl', e.target.value)} placeholder="https://yourcompany.com/logo.png" />
+                </Field>
+                {company.logoUrl && (
+                  <div className="bg-stone-800 rounded-lg p-3 flex items-center gap-3">
+                    <img src={company.logoUrl} alt="Logo preview" className="h-10 w-auto object-contain rounded" onError={e => (e.currentTarget.style.display = 'none')} />
+                    <p className="text-stone-400 text-xs">Logo preview</p>
+                  </div>
+                )}
               </div>
-              <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white">
-                {saved ? 'Saved!' : 'Save Changes'}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <SaveButton />
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Pay Period */}
-        <TabsContent value="payperiod">
-          <Card className="bg-stone-900 border-stone-800 text-white">
-            <CardHeader>
-              <CardTitle className="text-white">Pay Period</CardTitle>
-              <CardDescription className="text-stone-400">Set how your employees are paid and when the period starts.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <AccordionItem value="trade" className="bg-stone-900 border border-stone-800 rounded-xl px-4">
+            <AccordionTrigger className="text-white font-medium hover:no-underline py-4">Trade & Location</AccordionTrigger>
+            <AccordionContent className="pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-stone-300">Pay Period Type</Label>
-                  <Select value={payPeriod.type} onValueChange={v => setSettings(s => ({ ...s, payPeriod: { ...s.payPeriod, type: v as PayPeriodType } }))}>
+                <Field label="Trade">
+                  <Select value={company.trade} onValueChange={v => set('company', 'trade', v)}>
+                    <SelectTrigger className="bg-stone-800 border-stone-700 text-white">
+                      <SelectValue placeholder="Select trade..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-stone-800 border-stone-700 text-white">
+                      {TRADES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Timezone">
+                  <Select value={company.timezone} onValueChange={v => set('company', 'timezone', v)}>
                     <SelectTrigger className="bg-stone-800 border-stone-700 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-stone-800 border-stone-700 text-white">
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
-                      <SelectItem value="semimonthly">Semimonthly (1st &amp; 15th)</SelectItem>
+                      {TIMEZONES.map(tz => <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {payPeriod.type === 'weekly' && (
-                  <div className="space-y-2">
-                    <Label className="text-stone-300">Week Starts On</Label>
-                    <Select value={String(payPeriod.weeklyStartDay)} onValueChange={v => setSettings(s => ({ ...s, payPeriod: { ...s.payPeriod, weeklyStartDay: Number(v) } }))}>
-                      <SelectTrigger className="bg-stone-800 border-stone-700 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-stone-800 border-stone-700 text-white">
-                        {DAY_NAMES.map((day, i) => (
-                          <SelectItem key={i} value={String(i)}>{day}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {payPeriod.type === 'biweekly' && (
-                  <div className="space-y-2">
-                    <Label className="text-stone-300">Reference Start Date</Label>
-                    <Input type="date" value={payPeriod.biweeklyAnchor}
-                      onChange={e => setSettings(s => ({ ...s, payPeriod: { ...s.payPeriod, biweeklyAnchor: e.target.value } }))}
-                      className="bg-stone-800 border-stone-700 text-white" />
-                    <p className="text-stone-500 text-xs">The app will auto-calculate every 2-week period from this date forward.</p>
-                  </div>
-                )}
+                </Field>
               </div>
+              <SaveButton />
+            </AccordionContent>
+          </AccordionItem>
 
-              {/* Preview current period */}
-              <div className="bg-stone-800 rounded-lg p-3 text-sm">
-                <p className="text-stone-400 text-xs mb-1">Current Pay Period</p>
-                <p className="text-emerald-400 font-medium">
-                  {getPayPeriodRange(settings).start} – {getPayPeriodRange(settings).end}
-                </p>
-                <p className="text-stone-500 text-xs mt-1">Updates automatically — no manual changes needed.</p>
-              </div>
-              <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white">
-                {saved ? 'Saved!' : 'Save Changes'}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        </Accordion>
+      </div>
+    )
+  }
 
-        {/* Team Access */}
-        <TabsContent value="access">
+  // ── Pricing Defaults ─────────────────────────────────────────────────────
+  if (activeSection === 'pricing') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <Card className="bg-stone-900 border-stone-800 text-white">
+          <CardHeader>
+            <CardTitle className="text-white">Pricing Defaults</CardTitle>
+            <CardDescription className="text-stone-400">Default values used when creating new estimates.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Waste %" hint="Extra material to account for cuts and waste.">
+                <Input type="number" value={pricing.wastePct} onChange={e => set('pricing', 'wastePct', e.target.value)} />
+              </Field>
+              <Field label="Markup %" hint="Profit margin applied on top of costs.">
+                <Input type="number" value={pricing.markupPct} onChange={e => set('pricing', 'markupPct', e.target.value)} />
+              </Field>
+              <Field label="Labor per Square ($)" hint="Labor cost per roofing square (100 sq ft).">
+                <Input type="number" value={pricing.laborPerSq} onChange={e => set('pricing', 'laborPerSq', e.target.value)} />
+              </Field>
+              <Field label="Tear-off Rate per Square ($)" hint="Cost to remove old material per square.">
+                <Input type="number" value={pricing.tearoffRate} onChange={e => set('pricing', 'tearoffRate', e.target.value)} />
+              </Field>
+              <Field label="Hourly Rate ($)" hint="Default billable hourly rate.">
+                <Input type="number" value={pricing.hourlyRate} onChange={e => set('pricing', 'hourlyRate', e.target.value)} />
+              </Field>
+              <Field label="Labor Burden %" hint="Payroll taxes, workers' comp, and insurance on top of labor.">
+                <Input type="number" value={pricing.burdenPct} onChange={e => set('pricing', 'burdenPct', e.target.value)} />
+              </Field>
+            </div>
+            <SaveButton />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Pay Period ───────────────────────────────────────────────────────────
+  if (activeSection === 'payperiod') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <Card className="bg-stone-900 border-stone-800 text-white">
+          <CardHeader>
+            <CardTitle className="text-white">Pay Period</CardTitle>
+            <CardDescription className="text-stone-400">Set how your employees are paid and when the period starts.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Pay Period Type">
+                <Select value={payPeriod.type} onValueChange={v => setSettings(s => ({ ...s, payPeriod: { ...s.payPeriod, type: v as PayPeriodType } }))}>
+                  <SelectTrigger className="bg-stone-800 border-stone-700 text-white"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-stone-800 border-stone-700 text-white">
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
+                    <SelectItem value="semimonthly">Semimonthly (1st &amp; 15th)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {payPeriod.type === 'weekly' && (
+                <Field label="Week Starts On">
+                  <Select value={String(payPeriod.weeklyStartDay)} onValueChange={v => setSettings(s => ({ ...s, payPeriod: { ...s.payPeriod, weeklyStartDay: Number(v) } }))}>
+                    <SelectTrigger className="bg-stone-800 border-stone-700 text-white"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-stone-800 border-stone-700 text-white">
+                      {DAY_NAMES.map((day, i) => <SelectItem key={i} value={String(i)}>{day}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+              {payPeriod.type === 'biweekly' && (
+                <Field label="Reference Start Date" hint="The app auto-calculates every 2-week period from this date.">
+                  <Input type="date" value={payPeriod.biweeklyAnchor}
+                    onChange={e => setSettings(s => ({ ...s, payPeriod: { ...s.payPeriod, biweeklyAnchor: e.target.value } }))} />
+                </Field>
+              )}
+            </div>
+            <div className="bg-stone-800 rounded-lg p-3 text-sm">
+              <p className="text-stone-400 text-xs mb-1">Current Pay Period</p>
+              <p className="text-emerald-400 font-medium">
+                {getPayPeriodRange(settings).start} – {getPayPeriodRange(settings).end}
+              </p>
+              <p className="text-stone-500 text-xs mt-1">Updates automatically — no manual changes needed.</p>
+            </div>
+            <SaveButton />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Roles & Access ───────────────────────────────────────────────────────
+  if (activeSection === 'roles') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <div className="space-y-4">
           <Card className="bg-stone-900 border-stone-800 text-white">
             <CardHeader>
-              <CardTitle className="text-white">Team Access</CardTitle>
-              <CardDescription className="text-stone-400">Control who can invite new members to your organization.</CardDescription>
+              <CardTitle className="text-white">Role Permissions</CardTitle>
+              <CardDescription className="text-stone-400">What each role can access in your organization.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between py-3 border-b border-stone-800">
-                <div>
-                  <p className="text-white text-sm font-medium">Allow Sub-Admins to invite members</p>
-                  <p className="text-stone-500 text-xs mt-0.5">When enabled, Sub-Admins can invite Sales, Lead, Employee, and Laborer roles.</p>
-                </div>
-                <button
-                  onClick={() => setSubAdminCanInvite(v => !v)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${subAdminCanInvite ? 'bg-emerald-600' : 'bg-stone-700'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${subAdminCanInvite ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-stone-400 font-medium pb-3 pr-4">Permission</th>
+                      {ROLE_NAMES.map(r => (
+                        <th key={r} className="text-center text-stone-400 font-medium pb-3 px-2 whitespace-nowrap">{r}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-800">
+                    {ROLE_MATRIX.map(({ label, actions }) => (
+                      <tr key={label}>
+                        <td className="text-stone-300 py-2.5 pr-4 whitespace-nowrap">{label}</td>
+                        {actions.map((allowed, i) => (
+                          <td key={i} className="text-center py-2.5 px-2">
+                            {allowed
+                              ? <span className="inline-block w-4 h-4 rounded-full bg-emerald-600/30 text-emerald-400 text-[10px] leading-4">✓</span>
+                              : <span className="inline-block w-4 h-4 rounded-full bg-stone-800 text-stone-600 text-[10px] leading-4">—</span>
+                            }
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <Button onClick={saveAccessSettings} className="bg-emerald-600 hover:bg-emerald-500 text-white">
-                {accessSaved ? 'Saved!' : 'Save Changes'}
-              </Button>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Subscription */}
-        <TabsContent value="subscription">
           <Card className="bg-stone-900 border-stone-800 text-white">
             <CardHeader>
-              <CardTitle className="text-white">Subscription</CardTitle>
-              <CardDescription className="text-stone-400">Your current plan and billing.</CardDescription>
+              <CardTitle className="text-white">Team Access Controls</CardTitle>
+              <CardDescription className="text-stone-400">Fine-tune what your team can do.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                  { name: 'Solo', price: '$29', period: '/mo', features: ['1 admin/sales user', 'Up to 10 active jobs', 'Estimates & calculator', 'Time clock'] },
-                  { name: 'Crew', price: '$59', period: '/mo', features: ['Up to 5 admin/sales users', 'Unlimited jobs', 'Estimates & calculator', 'Time clock'], highlight: true },
-                  { name: 'Company', price: '$99', period: '/mo', features: ['Unlimited admin/sales users', 'Unlimited jobs', 'Estimates & calculator', 'Time clock', 'White-label PDF'] },
-                ].map(tier => (
-                  <div key={tier.name} className={`border rounded-lg p-4 space-y-3 hover:border-emerald-600 transition-colors cursor-pointer ${tier.highlight ? 'border-emerald-600 bg-stone-800' : 'border-stone-700'}`}>
-                    <p className="text-white font-semibold text-lg">{tier.name}</p>
-                    <div className="flex items-end gap-1">
-                      <span className="text-emerald-400 font-mono text-4xl font-bold tracking-tight">{tier.price}</span>
-                      <span className="text-stone-400 text-sm mb-1">{tier.period}</span>
-                    </div>
-                    <ul className="space-y-1">
-                      {tier.features.map(f => (
-                        <li key={f} className="text-stone-400 text-sm flex items-center gap-2">
-                          <span className="text-emerald-500">✓</span> {f}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-              <p className="text-stone-500 text-sm">Payment integration coming soon.</p>
+              <ToggleRow
+                label="Allow Sub-Admins to invite members"
+                description="When enabled, Sub-Admins can invite Sales, Lead, Employee, and Laborer roles."
+                checked={subAdminCanInvite}
+                onCheckedChange={setSubAdminCanInvite}
+              />
+              <Button onClick={saveAccessSettings} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                {accessSaved ? <><Check size={14} className="mr-1.5" />Saved</> : 'Save Changes'}
+              </Button>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Notifications ────────────────────────────────────────────────────────
+  if (activeSection === 'notifications') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <Card className="bg-stone-900 border-stone-800 text-white">
+          <CardHeader>
+            <CardTitle className="text-white">Notifications</CardTitle>
+            <CardDescription className="text-stone-400">Choose what you get notified about.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <p className="text-stone-500 text-xs uppercase tracking-wider pb-2">Email</p>
+            <ToggleRow
+              label="New job created"
+              description="Get an email when a new job is added to your organization."
+              checked={notifications.emailNewJob}
+              onCheckedChange={v => setSettings(s => ({ ...s, notifications: { ...s.notifications, emailNewJob: v } }))}
+            />
+            <ToggleRow
+              label="Employee clocks in"
+              description="Get an email when an employee clocks in for the day."
+              checked={notifications.emailClockIn}
+              onCheckedChange={v => setSettings(s => ({ ...s, notifications: { ...s.notifications, emailClockIn: v } }))}
+            />
+            <ToggleRow
+              label="Time edit request"
+              description="Get notified when an employee submits a time edit request."
+              checked={notifications.emailEditRequest}
+              onCheckedChange={v => setSettings(s => ({ ...s, notifications: { ...s.notifications, emailEditRequest: v } }))}
+            />
+            <ToggleRow
+              label="Invite accepted"
+              description="Get an email when someone joins your organization via invite."
+              checked={notifications.emailInviteAccepted}
+              onCheckedChange={v => setSettings(s => ({ ...s, notifications: { ...s.notifications, emailInviteAccepted: v } }))}
+            />
+            <div className="pt-4">
+              <SaveButton />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Subscription ─────────────────────────────────────────────────────────
+  if (activeSection === 'subscription') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <Card className="bg-stone-900 border-stone-800 text-white">
+          <CardHeader>
+            <CardTitle className="text-white">Subscription</CardTitle>
+            <CardDescription className="text-stone-400">Your current plan and billing.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { name: 'Solo',    price: '$29', period: '/mo', features: ['1 admin/sales user', 'Up to 10 active jobs', 'Estimates & calculator', 'Time clock'] },
+                { name: 'Crew',    price: '$59', period: '/mo', features: ['Up to 5 admin/sales users', 'Unlimited jobs', 'Estimates & calculator', 'Time clock'], highlight: true },
+                { name: 'Company', price: '$99', period: '/mo', features: ['Unlimited admin/sales users', 'Unlimited jobs', 'Estimates & calculator', 'Time clock', 'White-label PDF'] },
+              ].map(tier => (
+                <div key={tier.name} className={`border rounded-xl p-4 space-y-3 hover:border-emerald-600 transition-colors cursor-pointer ${tier.highlight ? 'border-emerald-600 bg-stone-800' : 'border-stone-700'}`}>
+                  <p className="text-white font-semibold text-lg">{tier.name}</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-emerald-400 font-mono text-4xl font-bold tracking-tight">{tier.price}</span>
+                    <span className="text-stone-400 text-sm mb-1">{tier.period}</span>
+                  </div>
+                  <ul className="space-y-1">
+                    {tier.features.map(f => (
+                      <li key={f} className="text-stone-400 text-sm flex items-center gap-2">
+                        <span className="text-emerald-500">✓</span> {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <p className="text-stone-500 text-sm">Payment integration coming soon.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Danger Zone ──────────────────────────────────────────────────────────
+  if (activeSection === 'danger') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SectionHeader />
+        <div className="space-y-4">
+          <Card className="bg-stone-900 border-red-900/40 text-white">
+            <CardHeader>
+              <CardTitle className="text-white">Transfer Ownership</CardTitle>
+              <CardDescription className="text-stone-400">Transfer admin ownership to another member of your organization.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-stone-400 text-sm mb-4">The current owner will be downgraded to Sub-Admin. This action cannot be undone without the new owner's cooperation.</p>
+              <Button variant="outline" disabled className="border-stone-700 text-stone-400 cursor-not-allowed">
+                Coming Soon
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-stone-900 border-red-900/40 text-white">
+            <CardHeader>
+              <CardTitle className="text-red-400">Delete Organization</CardTitle>
+              <CardDescription className="text-stone-400">Permanently delete your organization and all associated data.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-stone-400 text-sm mb-4">
+                This will permanently delete all jobs, employees, time entries, and settings. <span className="text-red-400 font-medium">This cannot be undone.</span>
+              </p>
+              <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} className="bg-red-700 hover:bg-red-600">
+                Delete Organization
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="bg-stone-900 border-stone-700 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-red-400">Delete Organization</DialogTitle>
+              <DialogDescription className="text-stone-400">
+                This action is permanent and cannot be undone. Type <span className="text-white font-mono font-semibold">DELETE</span> to confirm.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <Input
+                value={deleteInput}
+                onChange={e => setDeleteInput(e.target.value)}
+                placeholder="Type DELETE to confirm"
+                className="bg-stone-800 border-stone-700 text-white"
+              />
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setDeleteInput('') }} className="border-stone-700 text-stone-300 flex-1">
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deleteInput !== 'DELETE'}
+                  className="bg-red-700 hover:bg-red-600 flex-1 disabled:opacity-40"
+                  onClick={() => {
+                    // TODO: implement org deletion
+                    setDeleteConfirmOpen(false)
+                    setDeleteInput('')
+                  }}
+                >
+                  Delete Forever
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function Field({ label, hint, children, className }: { label: string; hint?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`space-y-1.5 ${className ?? ''}`}>
+      <Label className="text-stone-300">{label}</Label>
+      {hint && <p className="text-stone-500 text-xs">{hint}</p>}
+      <div className="[&_input]:bg-stone-800 [&_input]:border-stone-700 [&_input]:text-white [&_input]:placeholder:text-stone-500">
+        {children}
+      </div>
     </div>
   )
 }
+
+function ToggleRow({ label, description, checked, onCheckedChange }: {
+  label: string
+  description: string
+  checked: boolean
+  onCheckedChange: (v: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-stone-800 last:border-0">
+      <div className="pr-4">
+        <p className="text-white text-sm font-medium">{label}</p>
+        <p className="text-stone-500 text-xs mt-0.5">{description}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} className="data-[state=checked]:bg-emerald-600 flex-shrink-0" />
+    </div>
+  )
+}
+

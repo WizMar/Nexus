@@ -12,6 +12,9 @@ export type AppSettings = {
     address: string
     license: string
     website: string
+    logoUrl: string
+    trade: string
+    timezone: string
   }
   pricing: {
     wastePct: string
@@ -26,12 +29,19 @@ export type AppSettings = {
     weeklyStartDay: number    // 0=Sun, 1=Mon ... 6=Sat (for weekly)
     biweeklyAnchor: string    // reference start date (for biweekly)
   }
+  notifications: {
+    emailNewJob: boolean
+    emailClockIn: boolean
+    emailEditRequest: boolean
+    emailInviteAccepted: boolean
+  }
 }
 
 const defaultSettings: AppSettings = {
-  company: { name: '', phone: '', email: '', address: '', license: '', website: '' },
+  company: { name: '', phone: '', email: '', address: '', license: '', website: '', logoUrl: '', trade: '', timezone: 'America/Los_Angeles' },
   pricing: { wastePct: '10', markupPct: '30', laborPerSq: '85', tearoffRate: '35', hourlyRate: '45', burdenPct: '35' },
   payPeriod: { type: 'biweekly', weeklyStartDay: 1, biweeklyAnchor: new Date().toISOString().split('T')[0] },
+  notifications: { emailNewJob: true, emailClockIn: false, emailEditRequest: true, emailInviteAccepted: true },
 }
 
 function loadFromStorage(key: string, fallback: AppSettings): AppSettings {
@@ -41,6 +51,7 @@ function loadFromStorage(key: string, fallback: AppSettings): AppSettings {
       company: { ...fallback.company, ...stored.company },
       pricing: { ...fallback.pricing, ...stored.pricing },
       payPeriod: { ...fallback.payPeriod, ...stored.payPeriod },
+      notifications: { ...fallback.notifications, ...stored.notifications },
     }
     delete (merged.payPeriod as Record<string, unknown>).startDate
     delete (merged.payPeriod as Record<string, unknown>).endDate
@@ -53,6 +64,7 @@ function mergeFromDB(row: Record<string, unknown>, fallback: AppSettings): AppSe
     company: { ...fallback.company, ...(row.company as object ?? {}) },
     pricing: { ...fallback.pricing, ...(row.pricing as object ?? {}) },
     payPeriod: { ...fallback.payPeriod, ...(row.pay_period as object ?? {}) },
+    notifications: { ...fallback.notifications, ...(row.notifications as object ?? {}) },
   }
 }
 
@@ -92,6 +104,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       company: settings.company,
       pricing: settings.pricing,
       pay_period: settings.payPeriod,
+      notifications: settings.notifications,
       updated_at: new Date().toISOString(),
     }
     const { error } = await supabase.from('settings').upsert(payload, { onConflict: 'org_id' })
