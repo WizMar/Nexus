@@ -5,6 +5,7 @@ import { TimeClockProvider } from './context/TimeClockContext'
 import { SettingsProvider } from './context/SettingsContext'
 import { JobsProvider } from './context/JobsContext'
 import { EstimatesProvider } from './context/EstimatesContext'
+import { PreferencesProvider } from './context/PreferencesContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
@@ -16,6 +17,7 @@ import EmployeesPage from './pages/EmployeesPage'
 import EmployeeProfilePage from './pages/EmployeeProfilePage'
 import TimeClockPage from './pages/TimeClockPage'
 import SettingsPage from './pages/SettingsPage'
+import AccountPage from './pages/AccountPage'
 
 function AppRoutes() {
   const { session, loading, can } = useAuth()
@@ -36,6 +38,7 @@ function AppRoutes() {
   )
 
   return (
+    <PreferencesProvider>
     <SettingsProvider>
     <EstimatesProvider>
     <JobsProvider>
@@ -53,6 +56,7 @@ function AppRoutes() {
           <Route path="/employees" element={can('view:employees') ? <EmployeesPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/employees/:id" element={can('view:employees') ? <EmployeeProfilePage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/settings" element={can('manage:settings') ? <SettingsPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/account" element={<AccountPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
@@ -61,6 +65,7 @@ function AppRoutes() {
     </JobsProvider>
     </EstimatesProvider>
     </SettingsProvider>
+    </PreferencesProvider>
   )
 }
 
