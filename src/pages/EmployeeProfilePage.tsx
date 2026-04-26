@@ -39,7 +39,7 @@ export default function EmployeeProfilePage() {
     return (
       <div className="text-center text-zinc-400 mt-20">
         <p>Employee not found.</p>
-        <Button onClick={() => navigate('/employees')} className="mt-4 bg-amber-600 hover:bg-amber-500 text-white">Back to Employees</Button>
+        <Button onClick={() => navigate('/employees')} className="mt-4 bg-stone-500 hover:bg-stone-400 text-white">Back to Employees</Button>
       </div>
     )
   }
@@ -91,7 +91,7 @@ export default function EmployeeProfilePage() {
               )}
               <button
                 onClick={() => fileRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-amber-600 hover:bg-amber-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs"
+                className="absolute bottom-0 right-0 bg-stone-500 hover:bg-stone-400 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs"
                 title="Upload photo"
               >
                 +
@@ -105,13 +105,13 @@ export default function EmployeeProfilePage() {
                 <span className={`px-2 py-1 rounded text-xs font-medium ${roleColors[employee.role]}`}>{employee.role}</span>
                 <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[employee.status]}`}>{employee.status}</span>
               </div>
-              <p className="text-zinc-400 text-sm mt-2">With the company for <span className="text-amber-400 font-medium">{timeWithCompany(employee.hireDate)}</span></p>
+              <p className="text-zinc-400 text-sm mt-2">With the company for <span className="text-stone-300 font-medium">{timeWithCompany(employee.hireDate)}</span></p>
             </div>
 
             <div>
               {editing ? (
                 <div className="flex gap-2">
-                  <Button onClick={handleSave} className="bg-amber-600 hover:bg-amber-500 text-white text-sm">Save</Button>
+                  <Button onClick={handleSave} className="bg-stone-500 hover:bg-stone-400 text-white text-sm">Save</Button>
                   <Button onClick={handleCancel} variant="ghost" className="text-zinc-400 hover:text-white text-sm">Cancel</Button>
                 </div>
               ) : (
@@ -160,9 +160,10 @@ export default function EmployeeProfilePage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                      <SelectItem value="Laborer">Laborer</SelectItem>
                       <SelectItem value="Employee">Employee</SelectItem>
+                      <SelectItem value="Subcontractor">Subcontractor</SelectItem>
                       <SelectItem value="Lead">Lead</SelectItem>
+                      <SelectItem value="Project Manager">Project Manager</SelectItem>
                       <SelectItem value="Sales">Sales</SelectItem>
                       <SelectItem value="Sub-Admin">Sub-Admin</SelectItem>
                       <SelectItem value="Admin">Admin</SelectItem>
@@ -237,7 +238,7 @@ export default function EmployeeProfilePage() {
               value={form.notes}
               onChange={e => setForm({ ...form, notes: e.target.value })}
               placeholder="Add notes about this employee..."
-              className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-md p-2 placeholder:text-zinc-500 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-amber-600"
+              className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-md p-2 placeholder:text-zinc-500 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-stone-500"
             />
           ) : (
             <p className="text-zinc-300 text-sm whitespace-pre-wrap">{employee.notes || '—'}</p>
@@ -274,10 +275,10 @@ export default function EmployeeProfilePage() {
                       {entry.lunchStart ? `${fmt(entry.lunchStart)} – ${fmt(entry.lunchEnd)}` : '—'}
                     </td>
                     <td className="px-4 py-3 text-zinc-400">{fmt(entry.clockOut)}</td>
-                    <td className="px-4 py-3 text-amber-400 tabular-nums">{fmtHours(calcHours(entry))}</td>
+                    <td className="px-4 py-3 text-stone-300 tabular-nums">{fmtHours(calcHours(entry))}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        entry.status === 'approved' ? 'bg-amber-900 text-amber-300' :
+                        entry.status === 'approved' ? 'bg-stone-800 text-stone-200' :
                         entry.status === 'completed' ? 'bg-zinc-700 text-zinc-300' :
                         entry.status === 'pending_edit' ? 'bg-yellow-900 text-yellow-300' :
                         'bg-blue-900 text-blue-300'

@@ -162,7 +162,7 @@ export default function DashboardPage() {
                         labelStyle={{ color: '#a1a1aa' }}
                         formatter={(v) => [fmtHours(Number(v)), 'Hours']}
                       />
-                      <Bar dataKey="hours" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={48} cursor="default" />
+                      <Bar dataKey="hours" fill="#d6d3d1" radius={[4, 4, 0, 0]} maxBarSize={48} cursor="default" />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -177,7 +177,7 @@ export default function DashboardPage() {
         <div>
           <h3 className="text-lg font-semibold text-white mb-3">Quick Actions</h3>
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => navigate('/jobs')} className="bg-amber-600 hover:bg-amber-500 text-white">
+            <Button onClick={() => navigate('/jobs')} className="bg-stone-500 hover:bg-stone-400 text-white">
               + New Job
             </Button>
             <Button onClick={() => navigate('/employees')} className="bg-zinc-700 hover:bg-zinc-600 text-white">
@@ -199,7 +199,7 @@ export default function DashboardPage() {
               <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
                 <Briefcase className="w-10 h-10 text-zinc-600" strokeWidth={1.5} />
                 <p className="text-zinc-500 text-sm">No jobs yet.</p>
-                <Button onClick={() => navigate('/jobs')} className="bg-amber-600 hover:bg-amber-500 text-white mt-1">
+                <Button onClick={() => navigate('/jobs')} className="bg-stone-500 hover:bg-stone-400 text-white mt-1">
                   + Create First Job
                 </Button>
               </CardContent>

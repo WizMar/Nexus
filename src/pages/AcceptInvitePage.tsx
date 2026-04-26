@@ -150,14 +150,7 @@ export default function AcceptInvitePage() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center flex flex-col items-center gap-3">
-          <div className="flex items-center gap-3">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <polyline points="2,32 20,10 38,32" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              <polyline points="10,32 20,18 30,32" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.5"/>
-            </svg>
-            <h1 className="text-4xl font-bold text-white tracking-tight">Ridgeline</h1>
-          </div>
-          <p className="text-zinc-400 text-sm">Built for the Trades</p>
+          <h1 className="text-4xl font-bold text-white tracking-tight">Nexus</h1>
         </div>
 
         <Card className="bg-zinc-900 border-zinc-800">
@@ -170,7 +163,7 @@ export default function AcceptInvitePage() {
           {inviteStatus === 'invalid' && (
             <CardContent className="pt-6 text-center space-y-3">
               <p className="text-red-400">This invitation link is invalid.</p>
-              <button onClick={() => navigate('/login')} className="text-amber-500 hover:text-amber-400 text-sm">
+              <button onClick={() => navigate('/login')} className="text-stone-400 hover:text-stone-300 text-sm">
                 Back to Sign In
               </button>
             </CardContent>
@@ -179,7 +172,7 @@ export default function AcceptInvitePage() {
           {inviteStatus === 'expired' && (
             <CardContent className="pt-6 text-center space-y-3">
               <p className="text-red-400">This invitation has expired. Ask your admin to send a new one.</p>
-              <button onClick={() => navigate('/login')} className="text-amber-500 hover:text-amber-400 text-sm">
+              <button onClick={() => navigate('/login')} className="text-stone-400 hover:text-stone-300 text-sm">
                 Back to Sign In
               </button>
             </CardContent>
@@ -188,7 +181,7 @@ export default function AcceptInvitePage() {
           {inviteStatus === 'accepted' && (
             <CardContent className="pt-6 text-center space-y-3">
               <p className="text-zinc-400">This invitation has already been used.</p>
-              <button onClick={() => navigate('/login')} className="text-amber-500 hover:text-amber-400 text-sm">
+              <button onClick={() => navigate('/login')} className="text-stone-400 hover:text-stone-300 text-sm">
                 Sign In
               </button>
             </CardContent>
@@ -200,7 +193,7 @@ export default function AcceptInvitePage() {
                 <CardTitle className="text-white">You're invited!</CardTitle>
                 <CardDescription className="text-zinc-400">
                   Join <span className="text-white font-medium">{invitation.organizations?.name ?? 'your team'}</span> as{' '}
-                  <span className="text-amber-400 font-medium">{invitation.role}</span>
+                  <span className="text-stone-300 font-medium">{invitation.role}</span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -241,12 +234,12 @@ export default function AcceptInvitePage() {
                   </div>
 
                   {message && (
-                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-amber-400'}`}>
+                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-stone-300'}`}>
                       {message.text}
                     </p>
                   )}
 
-                  <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white" disabled={loading}>
+                  <Button type="submit" className="w-full bg-stone-500 hover:bg-stone-400 text-white" disabled={loading}>
                     {loading ? 'Creating account...' : 'Accept Invitation'}
                   </Button>
                 </form>

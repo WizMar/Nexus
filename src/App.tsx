@@ -7,6 +7,7 @@ import { SettingsProvider } from './context/SettingsContext'
 import { JobsProvider } from './context/JobsContext'
 import { EstimatesProvider } from './context/EstimatesContext'
 import { PreferencesProvider } from './context/PreferencesContext'
+import { PriceBookProvider } from './context/PriceBookContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
@@ -19,6 +20,7 @@ import EmployeeProfilePage from './pages/EmployeeProfilePage'
 import TimeClockPage from './pages/TimeClockPage'
 import SettingsPage from './pages/SettingsPage'
 import AccountPage from './pages/AccountPage'
+import ApprovePage from './pages/ApprovePage'
 
 function AppRoutes() {
   const { session, loading, can } = useAuth()
@@ -34,6 +36,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite" element={<AcceptInvitePage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/approve/:token" element={<ApprovePage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
@@ -41,6 +44,7 @@ function AppRoutes() {
   return (
     <PreferencesProvider>
     <SettingsProvider>
+    <PriceBookProvider>
     <EstimatesProvider>
     <JobsProvider>
     <TimeClockProvider>
@@ -59,12 +63,14 @@ function AppRoutes() {
           <Route path="/settings" element={can('manage:settings') ? <SettingsPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/account" element={<AccountPage />} />
         </Route>
+        <Route path="/approve/:token" element={<ApprovePage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </EmployeeProvider>
     </TimeClockProvider>
     </JobsProvider>
     </EstimatesProvider>
+    </PriceBookProvider>
     </SettingsProvider>
     </PreferencesProvider>
   )

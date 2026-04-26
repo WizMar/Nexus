@@ -9,6 +9,7 @@ type JobsContextType = {
   addJob: (job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateJob: (job: Job) => Promise<void>
   deleteJob: (id: string) => Promise<void>
+  requestApproval: (jobId: string) => Promise<string | null>
 }
 
 const JobsContext = createContext<JobsContextType | null>(null)
@@ -32,6 +33,12 @@ function toJob(row: Record<string, unknown>): Job {
     scheduledDate: (row.scheduled_date as string) ?? '',
     createdAt: (row.created_at as string) ?? '',
     updatedAt: (row.updated_at as string) ?? '',
+    approvalRequired: (row.approval_required as boolean) ?? false,
+    approvalStatus: (row.approval_status as Job['approvalStatus']) ?? 'none',
+    approvalRequestedAt: (row.approval_requested_at as string) ?? null,
+    approvalToken: (row.approval_token as string) ?? null,
+    approvedAt: (row.approved_at as string) ?? null,
+    approverName: (row.approver_name as string) ?? null,
   }
 }
 
@@ -91,6 +98,12 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
       notes: job.notes,
       scope: job.scope,
       scheduled_date: job.scheduledDate,
+      approval_required: job.approvalRequired,
+      approval_status: job.approvalStatus,
+      approval_requested_at: job.approvalRequestedAt,
+      approval_token: job.approvalToken,
+      approved_at: job.approvedAt,
+      approver_name: job.approverName,
       updated_at: new Date().toISOString(),
     }).eq('id', job.id)
     if (!error) setJobs(prev => prev.map(j => j.id === job.id ? job : j))
@@ -101,8 +114,25 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     if (!error) setJobs(prev => prev.filter(j => j.id !== id))
   }
 
+  async function requestApproval(jobId: string): Promise<string | null> {
+    const token = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('jobs').update({
+      approval_token: token,
+      approval_status: 'requested',
+      approval_requested_at: now,
+      updated_at: now,
+    }).eq('id', jobId)
+    if (error) return null
+    setJobs(prev => prev.map(j => j.id === jobId
+      ? { ...j, approvalToken: token, approvalStatus: 'requested', approvalRequestedAt: now }
+      : j
+    ))
+    return token
+  }
+
   return (
-    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, deleteJob }}>
+    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, deleteJob, requestApproval }}>
       {children}
     </JobsContext.Provider>
   )

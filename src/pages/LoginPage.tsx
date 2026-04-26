@@ -85,14 +85,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center flex flex-col items-center gap-3">
-          <div className="flex items-center gap-3">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <polyline points="2,32 20,10 38,32" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              <polyline points="10,32 20,18 30,32" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.5"/>
-            </svg>
-            <h1 className="text-4xl font-bold text-white tracking-tight">Ridgeline</h1>
-          </div>
-          <p className="text-zinc-400 text-sm">Built for the Trades</p>
+          <h1 className="text-4xl font-bold text-white tracking-tight">Nexus</h1>
         </div>
 
         <Card className="bg-zinc-900 border-zinc-800">
@@ -131,12 +124,12 @@ export default function LoginPage() {
                   </div>
 
                   {message && (
-                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-amber-400'}`}>
+                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-stone-300'}`}>
                       {message.text}
                     </p>
                   )}
 
-                  <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white" disabled={loading}>
+                  <Button type="submit" className="w-full bg-stone-500 hover:bg-stone-400 text-white" disabled={loading}>
                     {loading ? 'Signing in...' : 'Sign In'}
                   </Button>
 
@@ -151,10 +144,10 @@ export default function LoginPage() {
                 </form>
 
                 <div className="mt-4 pt-4 border-t border-zinc-800 text-center text-sm text-zinc-500">
-                  Starting a new company on Ridgeline?{' '}
+                  Starting a new company on Nexus?{' '}
                   <button
                     onClick={() => { setMode('create-org'); setMessage(null) }}
-                    className="text-amber-500 hover:text-amber-400 font-medium"
+                    className="text-stone-400 hover:text-stone-300 font-medium"
                   >
                     Create your organization
                   </button>
@@ -225,12 +218,12 @@ export default function LoginPage() {
                   </div>
 
                   {message && (
-                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-amber-400'}`}>
+                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-stone-300'}`}>
                       {message.text}
                     </p>
                   )}
 
-                  <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white" disabled={loading}>
+                  <Button type="submit" className="w-full bg-stone-500 hover:bg-stone-400 text-white" disabled={loading}>
                     {loading ? 'Creating...' : 'Create Organization'}
                   </Button>
                 </form>
@@ -239,7 +232,7 @@ export default function LoginPage() {
                   Already have an account?{' '}
                   <button
                     onClick={() => { setMode('login'); setMessage(null) }}
-                    className="text-amber-500 hover:text-amber-400 font-medium"
+                    className="text-stone-400 hover:text-stone-300 font-medium"
                   >
                     Sign In
                   </button>
@@ -273,12 +266,12 @@ export default function LoginPage() {
                   </div>
 
                   {message && (
-                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-amber-400'}`}>
+                    <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-stone-300'}`}>
                       {message.text}
                     </p>
                   )}
 
-                  <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white" disabled={loading}>
+                  <Button type="submit" className="w-full bg-stone-500 hover:bg-stone-400 text-white" disabled={loading}>
                     {loading ? 'Sending...' : 'Send Reset Link'}
                   </Button>
                 </form>
@@ -286,7 +279,7 @@ export default function LoginPage() {
                 <div className="mt-4 text-center text-sm text-zinc-400">
                   <button
                     onClick={() => { setMode('login'); setMessage(null) }}
-                    className="text-amber-500 hover:text-amber-400 font-medium"
+                    className="text-stone-400 hover:text-stone-300 font-medium"
                   >
                     Back to Sign In
                   </button>

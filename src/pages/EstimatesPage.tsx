@@ -1,22 +1,28 @@
 import { useState } from 'react'
+import { X, BookOpen, FileText, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 import { useEstimates } from '@/context/EstimatesContext'
 import { useJobs } from '@/context/JobsContext'
 import { useSettings } from '@/context/SettingsContext'
 import { useEmployees } from '@/context/EmployeeContext'
+import { usePriceBook } from '@/context/PriceBookContext'
+import { PDFDownloadButton } from '@/components/PDFDownloadButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  type Estimate, type EstimateStatus, type TradeCalc, type RoofCalc,
+  type Estimate, type EstimateStatus, type TradeCalc, type RoofCalc, type LineItem,
   ESTIMATE_STATUSES, STATUS_BADGE, PITCH_OPTIONS, calcEstimateTotal,
 } from '@/types/estimate'
+import { CATEGORY_OPTIONS } from '@/types/pricebook'
 import { type Job, JOB_TYPES } from '@/types/job'
 
 function fmt(n: number) {
@@ -113,7 +119,7 @@ const STATUS_BORDER: Record<EstimateStatus, string> = {
   Draft: 'border-l-zinc-500',
   Submitted: 'border-l-yellow-500',
   Sent: 'border-l-blue-500',
-  Approved: 'border-l-amber-500',
+  Approved: 'border-l-stone-400',
   Declined: 'border-l-red-500',
 }
 
@@ -134,7 +140,7 @@ function BtnGroup<T extends string>({
           onClick={() => onChange(o)}
           className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
             value === o
-              ? 'bg-amber-600 border-amber-600 text-white'
+              ? 'bg-stone-500 border-stone-500 text-white'
               : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 bg-zinc-900/30'
           }`}
         >
@@ -160,6 +166,21 @@ export default function EstimatesPage() {
   const [draft, setDraft] = useState<Estimate | null>(null)
   const [selected, setSelected] = useState<Estimate | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [pbPickerOpen, setPbPickerOpen] = useState(false)
+  const [pbSearch, setPbSearch] = useState('')
+  const [liForm, setLiForm] = useState<{ desc: string; qty: string; unit: string; price: string } | null>(null)
+  const [aiDesc, setAiDesc] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+
+  const { items: priceBookItems } = usePriceBook()
+
+  function addLineItem(li: Omit<LineItem, 'id'>) {
+    setDraft(d => d ? { ...d, lineItems: [...d.lineItems, { ...li, id: crypto.randomUUID() }] } : d)
+  }
+
+  function removeLineItem(id: string) {
+    setDraft(d => d ? { ...d, lineItems: d.lineItems.filter(li => li.id !== id) } : d)
+  }
 
   const pricingDefaults: PricingDefaults = {
     ...settings.pricing,
@@ -187,6 +208,7 @@ export default function EstimatesPage() {
     const num = await nextNumber()
     setDraft(newEstimate(num, pricingDefaults))
     setIsEditing(false)
+    setAiDesc('')
     setDialogOpen(true)
   }
 
@@ -212,14 +234,59 @@ export default function EstimatesPage() {
     setDetailOpen(true)
   }
 
+  async function generateWithAI() {
+    if (!aiDesc.trim() || !draft) return
+    setAiLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('ai_estimate', {
+        body: {
+          description: aiDesc,
+          pricingDefaults: pricingDefaults,
+        },
+      })
+      if (error || !data?.success) {
+        const msg = error?.message ?? data?.error ?? 'Unknown error'
+        toast.error(`AI estimate failed: ${msg}`)
+        console.error('ai_estimate error', error, data)
+        return
+      }
+      const est = data.estimate
+      setDraft(d => {
+        if (!d) return d
+        return {
+          ...d,
+          jobType: est.jobType ?? d.jobType,
+          scope: est.scope ?? d.scope,
+          roofCalc: est.roofCalc
+            ? { ...d.roofCalc, ...est.roofCalc }
+            : d.roofCalc,
+          tradeCalc: est.tradeCalc
+            ? { ...d.tradeCalc, ...est.tradeCalc }
+            : d.tradeCalc,
+          lineItems: est.lineItems?.length
+            ? [...d.lineItems, ...est.lineItems.map((li: { description: string; qty: number; unit: string; unitPrice: number }) => ({ ...li, id: crypto.randomUUID() }))]
+            : d.lineItems,
+        }
+      })
+      toast.success('Estimate filled in — review and adjust as needed')
+      setAiDesc('')
+    } catch {
+      toast.error('Failed to reach AI — try again')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   function handleSave() {
     if (!draft || !draft.client.name.trim()) return
     const updated = { ...draft, updatedAt: new Date().toISOString() }
     if (isEditing) {
       updateEstimate(updated)
       setSelected(updated)
+      toast.success('Estimate saved')
     } else {
       addEstimate(updated)
+      toast.success('Estimate created')
     }
     setDialogOpen(false)
   }
@@ -228,12 +295,13 @@ export default function EstimatesPage() {
     deleteEstimate(id)
     setConfirmDelete(null)
     setDetailOpen(false)
+    toast.success('Estimate deleted')
   }
 
   function handleConvert(estimate: Estimate) {
     const leads = employees.filter(e =>
       e.status === 'Active' &&
-      (e.role === 'Admin' || e.role === 'Sub-Admin' || e.role === 'Sales')
+      (e.role === 'Admin' || e.role === 'Sub-Admin' || e.role === 'Project Manager' || e.role === 'Sales')
     )
     const job: Job = {
       id: crypto.randomUUID(),
@@ -251,6 +319,12 @@ export default function EstimatesPage() {
       scheduledDate: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      approvalRequired: false,
+      approvalStatus: 'none',
+      approvalRequestedAt: null,
+      approvalToken: null,
+      approvedAt: null,
+      approverName: null,
     }
     addJob(job)
     const updated = { ...estimate, convertedJobId: job.id, updatedAt: new Date().toISOString() }
@@ -319,7 +393,7 @@ export default function EstimatesPage() {
             onClick={() => onMethod('markup')}
             className={`rounded-lg p-3 cursor-pointer transition-all ${
               method === 'markup'
-                ? 'border-2 border-amber-500 bg-amber-900/20'
+                ? 'border-2 border-stone-400 bg-stone-800/20'
                 : 'border border-zinc-700 bg-zinc-900/30 opacity-60'
             }`}
           >
@@ -349,7 +423,7 @@ export default function EstimatesPage() {
           <h2 className="text-2xl font-bold text-white">Estimates</h2>
           <p className="text-zinc-400 text-sm mt-1">Create and manage customer estimates.</p>
         </div>
-        <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-500 text-white">
+        <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white">
           + New Estimate
         </Button>
       </div>
@@ -362,7 +436,7 @@ export default function EstimatesPage() {
             onClick={() => setFilterStatus(s)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
               filterStatus === s
-                ? 'bg-amber-600 border-amber-600 text-white'
+                ? 'bg-stone-500 border-stone-500 text-white'
                 : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
             }`}
           >
@@ -382,10 +456,19 @@ export default function EstimatesPage() {
       {/* List */}
       {filtered.length === 0 ? (
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="py-16 text-center text-zinc-500">
-            {estimates.length === 0
-              ? 'No estimates yet. Create your first estimate to get started.'
-              : 'No estimates match your search.'}
+          <CardContent className="py-16 flex flex-col items-center text-center gap-3">
+            <FileText size={40} className="text-zinc-700" />
+            {estimates.length === 0 ? (
+              <>
+                <p className="text-zinc-400 font-medium">No estimates yet</p>
+                <p className="text-zinc-600 text-sm">Create your first estimate to get started.</p>
+                <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white mt-1">
+                  + New Estimate
+                </Button>
+              </>
+            ) : (
+              <p className="text-zinc-500">No estimates match your search.</p>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -408,7 +491,7 @@ export default function EstimatesPage() {
                 <p className="text-zinc-500 text-xs mt-1 line-clamp-1">{est.address || 'No address'}</p>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
                   <span className="text-zinc-500 text-xs">{est.jobType}</span>
-                  <span className="text-amber-400 text-sm font-semibold">{fmt(total)}</span>
+                  <span className="text-stone-300 text-sm font-semibold">{fmt(total)}</span>
                 </div>
                 {est.convertedJobId && (
                   <p className="text-teal-400 text-xs mt-2">Converted to Job</p>
@@ -437,7 +520,7 @@ export default function EstimatesPage() {
                         <span className="text-zinc-500 text-xs">{selected.jobType}</span>
                       </div>
                     </div>
-                    <span className="text-amber-400 text-2xl font-bold">{fmt(total)}</span>
+                    <span className="text-stone-300 text-2xl font-bold">{fmt(total)}</span>
                   </div>
                 </DialogHeader>
 
@@ -474,7 +557,7 @@ export default function EstimatesPage() {
                         )}
                         <div className="flex justify-between pt-2 border-t border-zinc-700 font-semibold">
                           <span className="text-white">Total</span>
-                          <span className="text-amber-400">{fmt(total)}</span>
+                          <span className="text-stone-300">{fmt(total)}</span>
                         </div>
                       </div>
                     </div>
@@ -514,6 +597,11 @@ export default function EstimatesPage() {
                   >
                     Edit
                   </Button>
+                  <PDFDownloadButton
+                    estimate={selected}
+                    totals={calcEstimateTotal(selected)}
+                    company={settings.company}
+                  />
                   <Select
                     value={selected.status}
                     onValueChange={v => {
@@ -533,7 +621,7 @@ export default function EstimatesPage() {
                   </Select>
                   {canConvert(selected) && (
                     <Button
-                      className="bg-amber-600 hover:bg-amber-500 text-white"
+                      className="bg-stone-500 hover:bg-stone-400 text-white"
                       onClick={() => setConfirmConvert(selected)}
                     >
                       Convert to Job
@@ -557,6 +645,30 @@ export default function EstimatesPage() {
 
           {draft && (
             <div className="space-y-4 mt-2">
+              {/* AI Estimate Assistant */}
+              <div className="bg-zinc-800/60 border border-stone-500/30 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-stone-300" />
+                  <p className="text-stone-300 text-xs font-semibold uppercase tracking-widest">AI Estimate Assistant</p>
+                </div>
+                <textarea
+                  value={aiDesc}
+                  onChange={e => setAiDesc(e.target.value)}
+                  rows={3}
+                  placeholder="Describe the job — e.g. &quot;2,400 sq ft reroof, 6/12 pitch, tear off 1 layer, GAF Timberline shingles, needs permit&quot;"
+                  className="w-full rounded-md bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-stone-500"
+                />
+                <button
+                  type="button"
+                  onClick={generateWithAI}
+                  disabled={aiLoading || !aiDesc.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-md bg-stone-500 hover:bg-stone-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+                >
+                  <Sparkles size={13} />
+                  {aiLoading ? 'Generating…' : 'Generate Estimate'}
+                </button>
+              </div>
+
               {/* Status */}
               <div className="space-y-1.5">
                 <Label className="text-zinc-300">Status</Label>
@@ -644,7 +756,8 @@ export default function EstimatesPage() {
               {/* ══ ROOFING CALCULATOR ══════════════════════════════════════════ */}
               {draft.jobType === 'Roofing' && (() => {
                 const rc = draft.roofCalc
-                const sq = parseFloat(rc.squares) || 0
+                const sqFt = parseFloat(rc.squares) || 0
+                const sq = sqFt / 100  // stored as sq ft; 1 roofing square = 100 sq ft
                 const waste = parseFloat(rc.wastePct) / 100 || 0
                 const adjustedSq = sq * (1 + waste)
                 const matTotal = adjustedSq * (parseFloat(rc.materialPerSq) || 0)
@@ -690,7 +803,10 @@ export default function EstimatesPage() {
                           <Label className="text-zinc-300 text-xs">Roof Area (sq ft)</Label>
                           <Input type="number" value={rc.squares}
                             onChange={e => setRC({ squares: e.target.value })}
-                            placeholder="0" className={inputCls} />
+                            placeholder="e.g. 2500" className={inputCls} />
+                          {sqFt > 0 && (
+                            <p className="text-zinc-500 text-xs">= {sq.toFixed(1)} roofing squares</p>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-zinc-300 text-xs">Pitch</Label>
@@ -707,13 +823,13 @@ export default function EstimatesPage() {
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <Label className="text-zinc-300 text-xs">Waste %</Label>
-                          <span className="text-amber-400 text-xs font-medium">{rc.wastePct || '10'}%</span>
+                          <span className="text-stone-300 text-xs font-medium">{rc.wastePct || '10'}%</span>
                         </div>
                         <input
                           type="range" min="5" max="30" step="1"
                           value={rc.wastePct || '10'}
                           onChange={e => setRC({ wastePct: e.target.value })}
-                          className="w-full accent-amber-500"
+                          className="w-full accent-stone-400"
                         />
                         <div className="flex justify-between text-zinc-600 text-xs">
                           <span>5%</span><span>30%</span>
@@ -748,10 +864,10 @@ export default function EstimatesPage() {
                       <p className={sectionLabelCls}>Materials</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-zinc-300 text-xs">Material Cost / Square</Label>
+                          <Label className="text-zinc-300 text-xs">Material Cost / Square <span className="text-zinc-600">(100 sq ft)</span></Label>
                           <Input type="number" value={rc.materialPerSq}
                             onChange={e => setRC({ materialPerSq: e.target.value })}
-                            placeholder="0" className={inputCls} />
+                            placeholder="e.g. 120" className={inputCls} />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-zinc-400 text-xs">Est. Material Total</Label>
@@ -770,7 +886,7 @@ export default function EstimatesPage() {
                             onClick={() => setRC({ laborMethod: val })}
                             className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                               rc.laborMethod === val
-                                ? 'bg-amber-600 border-amber-600 text-white'
+                                ? 'bg-stone-500 border-stone-500 text-white'
                                 : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 bg-zinc-900/30'
                             }`}
                           >{label}</button>
@@ -780,10 +896,10 @@ export default function EstimatesPage() {
                       {rc.laborMethod === 'perSq' && (
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1.5">
-                            <Label className="text-zinc-300 text-xs">Labor / Square</Label>
+                            <Label className="text-zinc-300 text-xs">Labor / Square <span className="text-zinc-600">(100 sq ft)</span></Label>
                             <Input type="number" value={rc.laborPerSq}
                               onChange={e => setRC({ laborPerSq: e.target.value })}
-                              placeholder="0" className={inputCls} />
+                              placeholder="e.g. 85" className={inputCls} />
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-zinc-400 text-xs">Est. Labor Total</Label>
@@ -1464,7 +1580,7 @@ export default function EstimatesPage() {
                       <div className="flex items-center gap-3">
                         <button type="button"
                           onClick={() => setTC({ prepWork: !tc.prepWork })}
-                          className={`w-10 h-5 rounded-full transition-colors ${tc.prepWork ? 'bg-amber-600' : 'bg-zinc-700'}`}>
+                          className={`w-10 h-5 rounded-full transition-colors ${tc.prepWork ? 'bg-stone-500' : 'bg-zinc-700'}`}>
                           <span className={`block w-4 h-4 mx-0.5 rounded-full bg-white transition-transform ${tc.prepWork ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                         <Label className="text-zinc-300 text-xs">Prep work included</Label>
@@ -1586,13 +1702,136 @@ export default function EstimatesPage() {
                 )
               })()}
 
+              {/* ══ LINE ITEMS ═══════════════════════════════════════════════════ */}
+              <div className={sectionCls}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className={sectionLabelCls}>Line Items</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPbSearch(''); setPbPickerOpen(true) }}
+                      className="flex items-center gap-1 text-xs text-stone-300 hover:text-stone-200 transition-colors"
+                    >
+                      <BookOpen size={11} /> Price Book
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLiForm({ desc: '', qty: '1', unit: 'ea', price: '' })}
+                      className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                    >
+                      + Custom
+                    </button>
+                  </div>
+                </div>
+
+                {/* Existing line items */}
+                {draft.lineItems.length > 0 && (
+                  <div className="space-y-1 mb-2">
+                    {draft.lineItems.map(li => (
+                      <div key={li.id} className="flex items-center gap-2 bg-zinc-900/60 rounded-lg px-3 py-2">
+                        <span className="flex-1 text-white text-sm truncate">{li.description}</span>
+                        <span className="text-zinc-500 text-xs shrink-0">{li.qty} {li.unit}</span>
+                        <span className="text-stone-300 font-mono text-xs shrink-0 w-20 text-right">{fmt(li.qty * li.unitPrice)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeLineItem(li.id)}
+                          className="text-zinc-600 hover:text-red-400 transition-colors shrink-0"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-1.5 border-t border-zinc-700 text-sm px-1">
+                      <span className="text-zinc-400">Line items subtotal</span>
+                      <span className="text-white font-medium">{fmt(draft.lineItems.reduce((s, li) => s + li.qty * li.unitPrice, 0))}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Inline custom item form */}
+                {liForm !== null && (
+                  <div className="bg-zinc-900/60 rounded-lg p-3 space-y-2">
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-5 space-y-1">
+                        <Label className="text-zinc-400 text-xs">Description</Label>
+                        <Input
+                          value={liForm.desc}
+                          onChange={e => setLiForm(f => f && { ...f, desc: e.target.value })}
+                          placeholder="Item name"
+                          className={`${inputCls} h-8 text-sm`}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-zinc-400 text-xs">Qty</Label>
+                        <Input
+                          type="number" min="0"
+                          value={liForm.qty}
+                          onChange={e => setLiForm(f => f && { ...f, qty: e.target.value })}
+                          placeholder="1"
+                          className={`${inputCls} h-8 text-sm`}
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-zinc-400 text-xs">Unit</Label>
+                        <Input
+                          value={liForm.unit}
+                          onChange={e => setLiForm(f => f && { ...f, unit: e.target.value })}
+                          placeholder="ea"
+                          className={`${inputCls} h-8 text-sm`}
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-zinc-400 text-xs">Price $</Label>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={liForm.price}
+                          onChange={e => setLiForm(f => f && { ...f, price: e.target.value })}
+                          placeholder="0.00"
+                          className={`${inputCls} h-8 text-sm`}
+                        />
+                      </div>
+                      <div className="col-span-1 flex items-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!liForm.desc.trim()) return
+                            addLineItem({
+                              description: liForm.desc.trim(),
+                              qty: parseFloat(liForm.qty) || 1,
+                              unit: liForm.unit || 'ea',
+                              unitPrice: parseFloat(liForm.price) || 0,
+                            })
+                            setLiForm(null)
+                          }}
+                          className="w-8 h-8 flex items-center justify-center rounded-md bg-stone-500 hover:bg-stone-400 text-white transition-colors"
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLiForm(null)}
+                      className="text-xs text-zinc-500 hover:text-zinc-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {draft.lineItems.length === 0 && liForm === null && (
+                  <p className="text-zinc-600 text-xs">No line items yet — add from your price book or enter a custom item.</p>
+                )}
+              </div>
+
               {/* Live Total Preview */}
               {(() => {
                 const { total } = calcEstimateTotal(draft)
                 return total > 0 ? (
                   <div className="bg-zinc-800 rounded-lg px-3 py-2 flex justify-between items-center">
                     <span className="text-zinc-400 text-sm">Estimated Total</span>
-                    <span className="text-amber-400 font-semibold">{fmt(total)}</span>
+                    <span className="text-stone-300 font-semibold">{fmt(total)}</span>
                   </div>
                 ) : null
               })()}
@@ -1603,7 +1842,7 @@ export default function EstimatesPage() {
                 <textarea value={draft.scope}
                   onChange={e => setDraft(d => d ? { ...d, scope: e.target.value } : d)}
                   rows={3} placeholder="Describe the work to be performed..."
-                  className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-600" />
+                  className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-500" />
               </div>
 
               {/* Notes */}
@@ -1612,7 +1851,7 @@ export default function EstimatesPage() {
                 <textarea value={draft.notes}
                   onChange={e => setDraft(d => d ? { ...d, notes: e.target.value } : d)}
                   rows={2} placeholder="Internal notes (not visible to client)..."
-                  className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-600" />
+                  className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-500" />
               </div>
             </div>
           )}
@@ -1622,7 +1861,7 @@ export default function EstimatesPage() {
               Cancel
             </Button>
             <Button
-              className="bg-amber-600 hover:bg-amber-500 text-white"
+              className="bg-stone-500 hover:bg-stone-400 text-white"
               onClick={handleSave}
               disabled={!draft?.client.name.trim()}
             >
@@ -1643,7 +1882,7 @@ export default function EstimatesPage() {
           </p>
           <DialogFooter className="mt-4">
             <Button variant="ghost" className="text-zinc-400" onClick={() => setConfirmConvert(null)}>Cancel</Button>
-            <Button className="bg-amber-600 hover:bg-amber-500 text-white"
+            <Button className="bg-stone-500 hover:bg-stone-400 text-white"
               onClick={() => confirmConvert && handleConvert(confirmConvert)}>
               Convert
             </Button>
@@ -1664,6 +1903,92 @@ export default function EstimatesPage() {
               Delete
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Price Book Picker */}
+      <Dialog open={pbPickerOpen} onOpenChange={open => { setPbPickerOpen(open); if (!open) setPbSearch('') }}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 text-white max-w-lg flex flex-col" style={{ maxHeight: '80vh' }}>
+          <DialogHeader>
+            <DialogTitle>Price Book</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Tap an item to add it to the estimate. You can add multiple.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Input
+            value={pbSearch}
+            onChange={e => setPbSearch(e.target.value)}
+            placeholder="Search items..."
+            className={`${inputCls} mt-1 flex-shrink-0`}
+          />
+
+          <div className="flex-1 overflow-y-auto mt-3 space-y-4 pr-1">
+            {priceBookItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <BookOpen size={32} className="text-zinc-700 mb-2" />
+                <p className="text-zinc-400 text-sm">Your price book is empty.</p>
+                <p className="text-zinc-600 text-xs mt-1">Add items in Settings → Price Book.</p>
+              </div>
+            ) : (
+              CATEGORY_OPTIONS.filter(cat => {
+                const visible = priceBookItems.filter(i =>
+                  i.category === cat &&
+                  (!pbSearch || i.name.toLowerCase().includes(pbSearch.toLowerCase()) || i.description.toLowerCase().includes(pbSearch.toLowerCase()))
+                )
+                return visible.length > 0
+              }).map(cat => {
+                const visible = priceBookItems.filter(i =>
+                  i.category === cat &&
+                  (!pbSearch || i.name.toLowerCase().includes(pbSearch.toLowerCase()) || i.description.toLowerCase().includes(pbSearch.toLowerCase()))
+                )
+                return (
+                  <div key={cat}>
+                    <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1.5">{cat}</p>
+                    <div className="space-y-1">
+                      {visible.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => addLineItem({ description: item.name, qty: 1, unit: item.unit, unitPrice: item.unitPrice })}
+                          className="w-full flex items-center justify-between bg-zinc-800 hover:bg-zinc-700 active:bg-stone-800/30 rounded-lg px-3 py-2.5 transition-colors text-left"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-white text-sm font-medium truncate">{item.name}</p>
+                            {item.description && <p className="text-zinc-500 text-xs truncate">{item.description}</p>}
+                          </div>
+                          <div className="text-right ml-4 flex-shrink-0">
+                            <p className="text-stone-300 text-sm font-mono">${item.unitPrice.toFixed(2)}</p>
+                            <p className="text-zinc-500 text-xs">per {item.unit}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {draft && draft.lineItems.length > 0 && (
+            <div className="border-t border-zinc-800 pt-3 mt-3 flex-shrink-0">
+              <p className="text-zinc-500 text-xs mb-1.5">Added to estimate ({draft.lineItems.length} item{draft.lineItems.length !== 1 ? 's' : ''})</p>
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {draft.lineItems.map(li => (
+                  <div key={li.id} className="flex items-center justify-between text-xs px-1">
+                    <span className="text-zinc-300 truncate flex-1">{li.description}</span>
+                    <span className="text-stone-300 font-mono ml-2">{fmt(li.qty * li.unitPrice)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-3 flex-shrink-0">
+            <Button onClick={() => setPbPickerOpen(false)} className="bg-stone-500 hover:bg-stone-400 text-white">
+              Done
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

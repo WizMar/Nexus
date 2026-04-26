@@ -10,16 +10,18 @@ import { type Employee, emptyEmployee, roleColors, statusColors } from '@/types/
 import { useEmployees } from '@/context/EmployeeContext'
 import { useAuth, type UserRole } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { useSettings } from '@/context/SettingsContext'
 import { toast } from 'sonner'
 import { Users } from 'lucide-react'
 
-const ADMIN_INVITE_ROLES: UserRole[] = ['Sub-Admin', 'Sales', 'Lead', 'Employee', 'Laborer']
-const SUB_ADMIN_INVITE_ROLES: UserRole[] = ['Sales', 'Lead', 'Employee', 'Laborer']
+const ADMIN_INVITE_ROLES: UserRole[] = ['Sub-Admin', 'Project Manager', 'Sales', 'Lead', 'Employee', 'Subcontractor']
+const SUB_ADMIN_INVITE_ROLES: UserRole[] = ['Project Manager', 'Sales', 'Lead', 'Employee', 'Subcontractor']
 
 export default function EmployeesPage() {
   const navigate = useNavigate()
   const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmployees()
   const { user, can } = useAuth()
+  const { settings } = useSettings()
   const [open, setOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Employee | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -32,6 +34,7 @@ export default function EmployeesPage() {
   const [inviteRole, setInviteRole] = useState<UserRole>('Employee')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [inviteEmailSent, setInviteEmailSent] = useState<'sending' | 'sent' | 'failed' | null>(null)
 
   const [inviteError, setInviteError] = useState('')
   const [subAdminCanInvite, setSubAdminCanInvite] = useState(true)
@@ -56,7 +59,7 @@ export default function EmployeesPage() {
     setInviteEmail('')
     setInviteRole('Employee')
     setInviteLink(null)
-
+    setInviteEmailSent(null)
     setInviteError('')
     setInviteOpen(true)
   }
@@ -89,9 +92,17 @@ export default function EmployeesPage() {
     }
 
     const link = `${window.location.origin}/invite?token=${data.token}`
-
     setInviteLink(link)
     setInviteLoading(false)
+
+    // Fire email — don't block the UI on this
+    const orgName = settings.company.name || 'Nexus'
+    setInviteEmailSent('sending')
+    supabase.functions.invoke('send-invite-email', {
+      body: { email: inviteEmail, inviteLink: link, role: inviteRole, orgName },
+    }).then(({ error: fnError }) => {
+      setInviteEmailSent(fnError ? 'failed' : 'sent')
+    })
   }
 
   function openAdd() {
@@ -150,11 +161,11 @@ export default function EmployeesPage() {
         </div>
         <div className="flex gap-2">
           {canInvite && (
-            <Button onClick={openInvite} variant="outline" className="border-amber-600 text-amber-400 hover:bg-amber-600 hover:text-white">
+            <Button onClick={openInvite} variant="outline" className="border-stone-500 text-stone-300 hover:bg-stone-500 hover:text-white">
               Invite Member
             </Button>
           )}
-          <Button onClick={openAdd} className="bg-amber-600 hover:bg-amber-500 text-white">
+          <Button onClick={openAdd} className="bg-stone-500 hover:bg-stone-400 text-white">
             + Add Employee
           </Button>
         </div>
@@ -175,7 +186,7 @@ export default function EmployeesPage() {
               {employees.length === 0 ? 'No employees yet.' : 'No results found.'}
             </p>
             {employees.length === 0 && (
-              <Button onClick={openAdd} className="bg-amber-600 hover:bg-amber-500 text-white mt-1">
+              <Button onClick={openAdd} className="bg-stone-500 hover:bg-stone-400 text-white mt-1">
                 + Add First Employee
               </Button>
             )}
@@ -206,7 +217,7 @@ export default function EmployeesPage() {
                         )}
                         <button
                           onClick={() => navigate(`/employees/${emp.id}`)}
-                          className="text-white font-medium hover:text-amber-400 transition-colors"
+                          className="text-white font-medium hover:text-stone-300 transition-colors"
                         >
                           {emp.name}
                         </button>
@@ -244,7 +255,7 @@ export default function EmployeesPage() {
           {inviteLink ? (
             <div className="space-y-4 py-2">
               <p className="text-zinc-400 text-sm">Share this link with your team member:</p>
-              <div className="bg-zinc-800 rounded-lg p-3 break-all text-amber-400 text-sm font-mono">
+              <div className="bg-zinc-800 rounded-lg p-3 break-all text-stone-300 text-sm font-mono">
                 {inviteLink}
               </div>
               <Button
@@ -254,7 +265,12 @@ export default function EmployeesPage() {
               >
                 Copy Link
               </Button>
-              <p className="text-zinc-500 text-xs text-center">Link expires in 7 days.</p>
+              <p className="text-zinc-500 text-xs text-center">
+                {inviteEmailSent === 'sending' && 'Sending invite email…'}
+                {inviteEmailSent === 'sent' && <span className="text-green-400">Email sent to {inviteEmail}</span>}
+                {inviteEmailSent === 'failed' && 'Email failed — share the link manually.'}
+                {inviteEmailSent === null && 'Link expires in 7 days.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-4 py-2">
@@ -289,7 +305,7 @@ export default function EmployeesPage() {
               {inviteLink ? 'Close' : 'Cancel'}
             </Button>
             {!inviteLink && (
-              <Button onClick={handleInvite} className="bg-amber-600 hover:bg-amber-500 text-white" disabled={inviteLoading || !inviteEmail}>
+              <Button onClick={handleInvite} className="bg-stone-500 hover:bg-stone-400 text-white" disabled={inviteLoading || !inviteEmail}>
                 {inviteLoading ? 'Creating...' : 'Send Invite'}
               </Button>
             )}
@@ -345,9 +361,10 @@ export default function EmployeesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                    <SelectItem value="Laborer">Laborer</SelectItem>
                     <SelectItem value="Employee">Employee</SelectItem>
+                    <SelectItem value="Subcontractor">Subcontractor</SelectItem>
                     <SelectItem value="Lead">Lead</SelectItem>
+                    <SelectItem value="Project Manager">Project Manager</SelectItem>
                     <SelectItem value="Sales">Sales</SelectItem>
                     <SelectItem value="Sub-Admin">Sub-Admin</SelectItem>
                     <SelectItem value="Admin">Admin</SelectItem>
@@ -363,7 +380,7 @@ export default function EmployeesPage() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} className="text-zinc-400 hover:text-white">Cancel</Button>
-            <Button onClick={handleSave} className="bg-amber-600 hover:bg-amber-500 text-white">
+            <Button onClick={handleSave} className="bg-stone-500 hover:bg-stone-400 text-white">
               {editTarget ? 'Save Changes' : 'Add Employee'}
             </Button>
           </DialogFooter>

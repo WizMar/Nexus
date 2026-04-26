@@ -47,14 +47,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center flex flex-col items-center gap-3">
-          <div className="flex items-center gap-3">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <polyline points="2,32 20,10 38,32" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              <polyline points="10,32 20,18 30,32" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.5"/>
-            </svg>
-            <h1 className="text-4xl font-bold text-white tracking-tight">Ridgeline</h1>
-          </div>
-          <p className="text-zinc-400 text-sm">Built for the Trades</p>
+          <h1 className="text-4xl font-bold text-white tracking-tight">Nexus</h1>
         </div>
 
         <Card className="bg-zinc-900 border-zinc-800">
@@ -93,12 +86,12 @@ export default function ResetPasswordPage() {
                 </div>
 
                 {message && (
-                  <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-amber-400'}`}>
+                  <p className={`text-sm ${message.type === 'error' ? 'text-red-400' : 'text-stone-300'}`}>
                     {message.text}
                   </p>
                 )}
 
-                <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white" disabled={loading}>
+                <Button type="submit" className="w-full bg-stone-500 hover:bg-stone-400 text-white" disabled={loading}>
                   {loading ? 'Updating...' : 'Update Password'}
                 </Button>
               </form>

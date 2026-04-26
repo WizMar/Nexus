@@ -8,12 +8,13 @@ import { useAuth } from '@/context/AuthContext'
 import { usePreferences, DATE_FORMATS } from '@/context/PreferencesContext'
 
 const ROLE_COLORS: Record<string, string> = {
-  Admin:       'bg-amber-600/20 text-amber-400',
-  'Sub-Admin': 'bg-blue-600/20 text-blue-400',
-  Lead:        'bg-purple-600/20 text-purple-400',
-  Sales:       'bg-yellow-600/20 text-yellow-400',
-  Employee:    'bg-zinc-600/20 text-zinc-400',
-  Laborer:     'bg-zinc-700/20 text-zinc-500',
+  Admin:             'bg-stone-500/20 text-stone-300',
+  'Sub-Admin':       'bg-teal-600/20 text-teal-400',
+  'Project Manager': 'bg-purple-600/20 text-purple-400',
+  Lead:              'bg-orange-600/20 text-orange-400',
+  Sales:             'bg-blue-600/20 text-blue-400',
+  Employee:          'bg-zinc-600/20 text-zinc-400',
+  Subcontractor:     'bg-cyan-600/20 text-cyan-400',
 }
 
 export default function AccountPage() {
@@ -42,8 +43,8 @@ export default function AccountPage() {
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-amber-600/20 border border-amber-600/40 flex items-center justify-center">
-              <User size={22} className="text-amber-400" />
+            <div className="w-12 h-12 rounded-full bg-stone-500/20 border border-stone-500/40 flex items-center justify-center">
+              <User size={22} className="text-stone-300" />
             </div>
             <div>
               <p className="text-white font-semibold text-lg leading-tight">{user?.name ?? '—'}</p>
@@ -60,7 +61,7 @@ export default function AccountPage() {
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Globe size={16} className="text-amber-400" />
+            <Globe size={16} className="text-stone-300" />
             <CardTitle className="text-white text-base">Language & Region</CardTitle>
           </div>
           <CardDescription className="text-zinc-400">Set your preferred language and date/time display.</CardDescription>
@@ -115,7 +116,7 @@ export default function AccountPage() {
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Monitor size={16} className="text-amber-400" />
+            <Monitor size={16} className="text-stone-300" />
             <CardTitle className="text-white text-base">Display</CardTitle>
           </div>
           <CardDescription className="text-zinc-400">Control how the app looks for you.</CardDescription>
@@ -129,7 +130,7 @@ export default function AccountPage() {
             <Switch
               checked={prefs.theme === 'dark'}
               onCheckedChange={v => set('theme', v ? 'dark' : 'light')}
-              className="data-[state=checked]:bg-amber-600"
+              className="data-[state=checked]:bg-stone-500"
             />
           </div>
           <div className="flex items-center justify-between py-3">
@@ -142,7 +143,7 @@ export default function AccountPage() {
         </CardContent>
       </Card>
 
-      <Button onClick={handleSave} className="bg-amber-600 hover:bg-amber-500 text-white">
+      <Button onClick={handleSave} className="bg-stone-500 hover:bg-stone-400 text-white">
         {saved ? <><Check size={14} className="mr-1.5" />Saved</> : 'Save Preferences'}
       </Button>
     </div>

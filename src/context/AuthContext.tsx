@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
-export type UserRole = 'Laborer' | 'Employee' | 'Lead' | 'Sales' | 'Sub-Admin' | 'Admin'
+export type UserRole = 'Employee' | 'Subcontractor' | 'Lead' | 'Project Manager' | 'Sales' | 'Sub-Admin' | 'Admin'
 
 export type AuthUser = {
   id: string
@@ -29,8 +29,9 @@ export type Action =
   | 'approve:edits'
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
-  Laborer: [
+  Subcontractor: [
     'view:timeclock',
+    'view:jobs:assigned',
   ],
   Employee: [
     'view:timeclock',
@@ -40,6 +41,18 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'view:timeclock',
     'view:jobs:assigned',
     'view:jobs:all',
+  ],
+  'Project Manager': [
+    'view:dashboard',
+    'view:timeclock',
+    'manage:timeclock',
+    'approve:edits',
+    'view:jobs:assigned',
+    'view:jobs:all',
+    'create:jobs',
+    'view:estimates',
+    'create:estimates',
+    'view:employees',
   ],
   Sales: [
     'view:dashboard',
@@ -58,7 +71,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'view:jobs:all',
     'create:jobs',
     'view:estimates',
+    'create:estimates',
     'view:employees',
+    'manage:employees',
     'invite:members',
   ],
   Admin: [
@@ -125,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: session.user.id,
         email: session.user.email ?? '',
         name: (meta.name as string) ?? session.user.email ?? '',
-        role: (meta.role as UserRole) ?? 'Laborer',
+        role: (meta.role as UserRole) ?? 'Employee',
         org_id: (meta.org_id as string) ?? null,
       }
       setUser(u)

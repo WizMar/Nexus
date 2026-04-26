@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useJobs } from '@/context/JobsContext'
 import { useEmployees } from '@/context/EmployeeContext'
 import { usePreferences, formatDate } from '@/context/PreferencesContext'
+import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,8 +17,10 @@ import {
   type Job, type JobStatus, type JobType,
   JOB_STATUSES, JOB_TYPES, STATUS_BADGE, STATUS_BORDER,
 } from '@/types/job'
+import { useSettings } from '@/context/SettingsContext'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { Briefcase } from 'lucide-react'
+import { Briefcase, CheckCircle2, Send, Copy, Check, ShieldAlert } from 'lucide-react'
 
 function newJob(): Job {
   return {
@@ -34,6 +37,12 @@ function newJob(): Job {
     scheduledDate: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    approvalRequired: false,
+    approvalStatus: 'none',
+    approvalRequestedAt: null,
+    approvalToken: null,
+    approvedAt: null,
+    approverName: null,
   }
 }
 
@@ -43,9 +52,11 @@ function streetViewUrl(address: string) {
 }
 
 export default function JobsPage() {
-  const { jobs, addJob, updateJob, deleteJob } = useJobs()
+  const { jobs, addJob, updateJob, deleteJob, requestApproval } = useJobs()
   const { employees } = useEmployees()
   const { prefs } = usePreferences()
+  const { user } = useAuth()
+  const { settings } = useSettings()
 
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'All'>('All')
@@ -55,8 +66,57 @@ export default function JobsPage() {
   const [draft, setDraft] = useState<Job>(newJob())
   const [selected, setSelected] = useState<Job | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [sendingApproval, setSendingApproval] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  const leads = employees.filter(e => e.status === 'Active' && (e.role === 'Admin' || e.role === 'Sub-Admin' || e.role === 'Lead' || e.role === 'Sales'))
+  const isAdmin = user?.role === 'Admin' || user?.role === 'Sub-Admin'
+  const canRequestApproval = isAdmin || user?.role === 'Project Manager' || user?.role === 'Lead'
+
+  async function handleRequestApproval(job: Job) {
+    setSendingApproval(true)
+    const token = await requestApproval(job.id)
+    if (token) {
+      const updated = { ...job, approvalToken: token, approvalStatus: 'requested' as const, approvalRequestedAt: new Date().toISOString() }
+      setSelected(updated)
+
+      const approvalLink = `${window.location.origin}/approve/${token}`
+      const orgName = settings.company.name || 'Nexus'
+      const hasContact = !!(job.client.email || job.client.phone)
+
+      if (hasContact) {
+        toast.success(`Approval request sent to ${job.client.name || 'client'}`)
+        supabase.functions.invoke('send-approval-request', {
+          body: {
+            clientEmail: job.client.email,
+            clientPhone: job.client.phone,
+            clientName: job.client.name,
+            jobTitle: job.title,
+            approvalLink,
+            orgName,
+          },
+        })
+      } else {
+        toast.success('Approval link ready — no email or phone on file for this client')
+      }
+    } else {
+      toast.error('Failed to generate approval link')
+    }
+    setSendingApproval(false)
+  }
+
+  function handleCopyLink(token: string) {
+    navigator.clipboard.writeText(`${window.location.origin}/approve/${token}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function toggleApprovalRequired(job: Job) {
+    const updated = { ...job, approvalRequired: !job.approvalRequired }
+    await updateJob(updated)
+    setSelected(updated)
+  }
+
+  const leads = employees.filter(e => e.status === 'Active' && (e.role === 'Admin' || e.role === 'Sub-Admin' || e.role === 'Project Manager' || e.role === 'Lead' || e.role === 'Sales'))
   const crew = employees.filter(e => e.status === 'Active')
 
   const filtered = jobs.filter(j => {
@@ -132,7 +192,7 @@ export default function JobsPage() {
           <h2 className="text-2xl font-bold text-white">Jobs</h2>
           <p className="text-zinc-400 text-sm mt-1">Manage your active and upcoming jobs.</p>
         </div>
-        <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-500 text-white">
+        <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white">
           + New Job
         </Button>
       </div>
@@ -145,7 +205,7 @@ export default function JobsPage() {
             onClick={() => setFilterStatus(s)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
               filterStatus === s
-                ? 'bg-amber-600 border-amber-600 text-white'
+                ? 'bg-stone-500 border-stone-500 text-white'
                 : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
             }`}
           >
@@ -171,7 +231,7 @@ export default function JobsPage() {
               {jobs.length === 0 ? 'No jobs yet.' : 'No jobs match your search.'}
             </p>
             {jobs.length === 0 && (
-              <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-500 text-white mt-1">
+              <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white mt-1">
                 + Create First Job
               </Button>
             )}
@@ -248,7 +308,7 @@ export default function JobsPage() {
                       href={streetViewUrl(selected.address)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-3 py-2 text-xs text-amber-400 hover:text-amber-300 bg-zinc-800 transition-colors"
+                      className="flex items-center gap-2 px-3 py-2 text-xs text-stone-300 hover:text-stone-200 bg-zinc-800 transition-colors"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -305,6 +365,88 @@ export default function JobsPage() {
                     <p className="text-zinc-200 text-sm whitespace-pre-wrap">{selected.notes}</p>
                   </div>
                 )}
+
+                {/* Customer Approval — visible on Completed jobs */}
+                {selected.status === 'Completed' && (
+                  <div className="bg-zinc-800 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-zinc-300 text-xs font-semibold uppercase tracking-wide">Customer Approval</p>
+                      {/* Admin-only: toggle required */}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => toggleApprovalRequired(selected)}
+                          className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            selected.approvalRequired
+                              ? 'bg-stone-800/40 border-stone-500 text-stone-200'
+                              : 'border-zinc-600 text-zinc-500 hover:border-zinc-400 hover:text-zinc-300'
+                          }`}
+                        >
+                          <ShieldAlert size={11} />
+                          {selected.approvalRequired ? 'Required' : 'Require sign-off'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Required but not yet approved — warning banner */}
+                    {selected.approvalRequired && selected.approvalStatus !== 'approved' && (
+                      <div className="flex items-center gap-2 bg-stone-800/20 border border-amber-800 rounded-md px-3 py-2">
+                        <ShieldAlert size={13} className="text-stone-300 shrink-0" />
+                        <p className="text-stone-200 text-xs">This job requires customer sign-off before it can be invoiced.</p>
+                      </div>
+                    )}
+
+                    {/* Approved state */}
+                    {selected.approvalStatus === 'approved' && (
+                      <div className="flex items-center gap-2 bg-green-900/20 border border-green-800 rounded-md px-3 py-2">
+                        <CheckCircle2 size={14} className="text-green-400 shrink-0" />
+                        <div>
+                          <p className="text-green-300 text-xs font-medium">Approved by {selected.approverName}</p>
+                          {selected.approvedAt && (
+                            <p className="text-green-600 text-xs">{new Date(selected.approvedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Requested — show copy link */}
+                    {selected.approvalStatus === 'requested' && selected.approvalToken && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 bg-blue-900/20 border border-blue-800 rounded-md px-3 py-2">
+                          <Send size={12} className="text-blue-400 shrink-0" />
+                          <p className="text-blue-300 text-xs">
+                            Request sent{selected.approvalRequestedAt ? ` · ${new Date(selected.approvalRequestedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLink(selected.approvalToken!)}
+                          className="w-full flex items-center justify-between gap-2 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+                        >
+                          <span className="truncate font-mono">{`${window.location.origin}/approve/${selected.approvalToken}`}</span>
+                          <span className="shrink-0 flex items-center gap-1">
+                            {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                            {copied ? 'Copied!' : 'Copy'}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* None state — show send button for eligible roles */}
+                    {selected.approvalStatus === 'none' && canRequestApproval && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={sendingApproval}
+                        onClick={() => handleRequestApproval(selected)}
+                        className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 gap-1.5"
+                      >
+                        <Send size={13} />
+                        {sendingApproval ? 'Generating…' : 'Request Customer Approval'}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <DialogFooter className="flex gap-2 mt-4">
@@ -316,7 +458,7 @@ export default function JobsPage() {
                   Delete
                 </Button>
                 <Button
-                  className="bg-amber-600 hover:bg-amber-500 text-white"
+                  className="bg-stone-500 hover:bg-stone-400 text-white"
                   onClick={() => openEdit(selected)}
                 >
                   Edit Job
@@ -355,9 +497,14 @@ export default function JobsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                    {JOB_STATUSES.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
+                    {JOB_STATUSES.map(s => {
+                      const blocked = s === 'Invoiced' && draft.approvalRequired && draft.approvalStatus !== 'approved'
+                      return (
+                        <SelectItem key={s} value={s} disabled={blocked}>
+                          {s}{blocked ? ' — requires approval' : ''}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -463,7 +610,7 @@ export default function JobsPage() {
                       onClick={() => toggleCrew(e.id)}
                       className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
                         draft.crewIds.includes(e.id)
-                          ? 'border-amber-600 bg-amber-900/30 text-amber-300'
+                          ? 'border-stone-500 bg-stone-800/30 text-stone-200'
                           : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
                       }`}
                     >
@@ -482,7 +629,7 @@ export default function JobsPage() {
                 onChange={e => setDraft(d => ({ ...d, scope: e.target.value }))}
                 rows={3}
                 placeholder="Describe the work to be performed..."
-                className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-600"
+                className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-500"
               />
             </div>
 
@@ -494,7 +641,7 @@ export default function JobsPage() {
                 onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
                 rows={2}
                 placeholder="Internal notes (not visible to client)..."
-                className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-600"
+                className="w-full rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-500"
               />
             </div>
 
@@ -505,7 +652,7 @@ export default function JobsPage() {
               Cancel
             </Button>
             <Button
-              className="bg-amber-600 hover:bg-amber-500 text-white"
+              className="bg-stone-500 hover:bg-stone-400 text-white"
               onClick={handleSave}
               disabled={!draft.title.trim() || !draft.client.name.trim()}
             >

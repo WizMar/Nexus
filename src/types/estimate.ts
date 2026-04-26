@@ -139,7 +139,7 @@ export const ESTIMATE_STATUSES: EstimateStatus[] = ['Draft', 'Submitted', 'Appro
 export const STATUS_BADGE: Record<EstimateStatus, string> = {
   Draft: 'bg-zinc-700 text-zinc-300',
   Submitted: 'bg-yellow-900/60 text-yellow-300',
-  Approved: 'bg-amber-900/60 text-amber-300',
+  Approved: 'bg-stone-800/60 text-stone-200',
   Sent: 'bg-blue-900/60 text-blue-300',
   Declined: 'bg-red-900/60 text-red-300',
 }
@@ -159,8 +159,11 @@ export function calcEstimateTotal(e: Estimate): EstimateTotals {
   const breakdown: BreakdownItem[] = []
 
   function finish(costs: number, markupPct: number, sellPriceOverride?: number): EstimateTotals {
+    e.lineItems.forEach(li => {
+      const amount = li.qty * li.unitPrice
+      if (amount !== 0) breakdown.push({ label: li.description || 'Line Item', amount })
+    })
     const subtotal = costs + extraItems
-    if (extraItems > 0) breakdown.push({ label: 'Add-ons', amount: extraItems })
     if (sellPriceOverride !== undefined && sellPriceOverride > 0) {
       return { breakdown, subtotal, markup: sellPriceOverride - subtotal, markupPct, total: sellPriceOverride }
     }
@@ -174,7 +177,7 @@ export function calcEstimateTotal(e: Estimate): EstimateTotals {
   }
 
   if (e.jobType === 'Roofing') {
-    const sq = parseFloat(e.roofCalc.squares) || 0
+    const sq = (parseFloat(e.roofCalc.squares) || 0) / 100  // stored as sq ft, converted to squares
     const waste = parseFloat(e.roofCalc.wastePct) / 100 || 0
     const mPct = parseFloat(e.roofCalc.markupPct) || 0
     const burdenPct = parseFloat(e.roofCalc.burdenPct) || 0

@@ -27,12 +27,8 @@ export default function Sidebar() {
   return (
     <aside className="w-60 min-h-screen bg-zinc-900 border-r border-zinc-800 flex flex-col">
       {/* Logo */}
-      <div className="px-6 py-5 flex items-center gap-3 border-b border-zinc-800">
-        <svg width="30" height="30" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M3 29 L18 5 L33 29 Z" fill="#f59e0b"/>
-          <path d="M10 29 L18 13 L26 29 Z" fill="#18181b"/>
-        </svg>
-        <span className="text-lg font-bold text-white tracking-tight">Ridgeline</span>
+      <div className="px-6 py-5 flex items-center border-b border-zinc-800">
+        <span className="text-lg font-bold text-white tracking-tight">Nexus</span>
       </div>
 
       {/* Nav Links */}
@@ -44,7 +40,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-amber-600 text-white'
+                  ? 'bg-stone-500 text-white'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
               }`
             }
@@ -67,7 +63,7 @@ export default function Sidebar() {
           to="/account"
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              isActive ? 'bg-amber-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+              isActive ? 'bg-stone-500 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
             }`
           }
         >

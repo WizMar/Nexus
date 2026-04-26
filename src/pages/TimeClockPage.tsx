@@ -196,13 +196,13 @@ export default function TimeClockPage() {
                   <Card key={entry.id} className="bg-zinc-900 border-zinc-800 text-white">
                     <CardContent className="pt-4 space-y-2">
                       <div className="flex items-center justify-between">
-                        <button onClick={() => navigate(`/employees/${entry.employeeId}`)} className="font-semibold text-white hover:text-amber-400 transition-colors">{entry.employeeName}</button>
-                        <span className={`text-xs px-2 py-1 rounded font-medium ${entry.status === 'on_lunch' ? 'bg-yellow-900 text-yellow-300' : 'bg-amber-900 text-amber-300'}`}>
+                        <button onClick={() => navigate(`/employees/${entry.employeeId}`)} className="font-semibold text-white hover:text-stone-300 transition-colors">{entry.employeeName}</button>
+                        <span className={`text-xs px-2 py-1 rounded font-medium ${entry.status === 'on_lunch' ? 'bg-yellow-900 text-yellow-300' : 'bg-stone-800 text-stone-200'}`}>
                           {entry.status === 'on_lunch' ? 'On Lunch' : 'Clocked In'}
                         </span>
                       </div>
                       <p className="text-zinc-400 text-sm">In: {fmt(entry.clockIn)}</p>
-                      <p className="text-amber-400 text-sm tabular-nums">{fmtHours(calcHours(entry))} elapsed</p>
+                      <p className="text-stone-300 text-sm tabular-nums">{fmtHours(calcHours(entry))} elapsed</p>
                       {entry.status === 'on_lunch' && entry.lunchStart && (() => {
                         const ms = now - new Date(entry.lunchStart).getTime()
                         const mins = Math.floor(ms / 60000)
@@ -247,20 +247,20 @@ export default function TimeClockPage() {
                     const isLocating = locating === emp.id
                     return (
                       <tr key={emp.id} className="border-b border-zinc-800 hover:bg-zinc-800 transition-colors">
-                        <td className="px-4 py-3 font-medium"><button onClick={() => navigate(`/employees/${emp.id}`)} className="text-white hover:text-amber-400 transition-colors">{emp.name}</button></td>
+                        <td className="px-4 py-3 font-medium"><button onClick={() => navigate(`/employees/${emp.id}`)} className="text-white hover:text-stone-300 transition-colors">{emp.name}</button></td>
                         <td className="px-4 py-3 text-zinc-400">{fmt(entry?.clockIn ?? null)}</td>
                         <td className="px-4 py-3 text-zinc-400 hidden sm:table-cell">
                           {entry?.lunchStart ? `${fmt(entry.lunchStart)} – ${fmt(entry.lunchEnd)}` : '—'}
                         </td>
                         <td className="px-4 py-3 text-zinc-400">{fmt(entry?.clockOut ?? null)}</td>
-                        <td className="px-4 py-3 text-amber-400 tabular-nums">
+                        <td className="px-4 py-3 text-stone-300 tabular-nums">
                           {entry ? fmtHours(calcHours(entry)) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2 flex-wrap">
                             {(!entry || entry.status === 'completed' || entry.status === 'approved') && (
                               <Button onClick={() => clockIn(emp)} disabled={isLocating}
-                                className="bg-amber-600 hover:bg-amber-500 text-white text-xs h-7 px-3">
+                                className="bg-stone-500 hover:bg-stone-400 text-white text-xs h-7 px-3">
                                 {isLocating ? 'Locating...' : 'Clock In'}
                               </Button>
                             )}
@@ -283,7 +283,7 @@ export default function TimeClockPage() {
                               </Button>
                             )}
                             {(entry?.status === 'completed' || entry?.status === 'approved') && (
-                              <span className="text-amber-400 text-xs font-medium">Done</span>
+                              <span className="text-stone-300 text-xs font-medium">Done</span>
                             )}
                             {entry && entry.status !== 'pending_edit' && entry.status !== 'approved' && (
                               <button onClick={() => openEditRequest(entry)}
@@ -327,12 +327,12 @@ export default function TimeClockPage() {
                     const activeNow = activeEntries.find(e => e.employeeId === emp.id)
                     return (
                       <tr key={emp.id} className="border-b border-zinc-800 hover:bg-zinc-800 transition-colors">
-                        <td className="px-4 py-3 font-medium"><button onClick={() => navigate(`/employees/${emp.id}`)} className="text-white hover:text-amber-400 transition-colors">{emp.name}</button></td>
+                        <td className="px-4 py-3 font-medium"><button onClick={() => navigate(`/employees/${emp.id}`)} className="text-white hover:text-stone-300 transition-colors">{emp.name}</button></td>
                         <td className="px-4 py-3 text-zinc-400 hidden sm:table-cell">{emp.role}</td>
-                        <td className="px-4 py-3 text-amber-400 tabular-nums font-semibold">{fmtHours(weekHours)}</td>
+                        <td className="px-4 py-3 text-stone-300 tabular-nums font-semibold">{fmtHours(weekHours)}</td>
                         <td className="px-4 py-3">
                           {activeNow ? (
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${activeNow.status === 'on_lunch' ? 'bg-yellow-900 text-yellow-300' : 'bg-amber-900 text-amber-300'}`}>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${activeNow.status === 'on_lunch' ? 'bg-yellow-900 text-yellow-300' : 'bg-stone-800 text-stone-200'}`}>
                               {activeNow.status === 'on_lunch' ? 'On Lunch' : 'Clocked In'}
                             </span>
                           ) : (
@@ -367,7 +367,7 @@ export default function TimeClockPage() {
                     </div>
                     <div>
                       <p className="text-zinc-400 text-xs">Requested Clock In</p>
-                      <p className="text-amber-400">{fmt(entry.editedClockIn)}</p>
+                      <p className="text-stone-300">{fmt(entry.editedClockIn)}</p>
                     </div>
                     <div>
                       <p className="text-zinc-400 text-xs">Original Clock Out</p>
@@ -375,14 +375,14 @@ export default function TimeClockPage() {
                     </div>
                     <div>
                       <p className="text-zinc-400 text-xs">Requested Clock Out</p>
-                      <p className="text-amber-400">{fmt(entry.editedClockOut)}</p>
+                      <p className="text-stone-300">{fmt(entry.editedClockOut)}</p>
                     </div>
                   </div>
                   {entry.editRequest && (
                     <p className="text-zinc-300 text-sm italic">"{entry.editRequest}"</p>
                   )}
                   <div className="flex gap-2 pt-1">
-                    <Button onClick={() => approveEdit(entry)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs h-7 px-3">Approve</Button>
+                    <Button onClick={() => approveEdit(entry)} className="bg-stone-500 hover:bg-stone-400 text-white text-xs h-7 px-3">Approve</Button>
                     <Button onClick={() => denyEdit(entry)} className="bg-red-700 hover:bg-red-600 text-white text-xs h-7 px-3">Deny</Button>
                   </div>
                 </CardContent>
@@ -415,7 +415,7 @@ export default function TimeClockPage() {
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setEditModal(null)} className="text-zinc-400 hover:text-white">Cancel</Button>
-              <Button onClick={submitEditRequest} className="bg-amber-600 hover:bg-amber-500 text-white">Submit Request</Button>
+              <Button onClick={submitEditRequest} className="bg-stone-500 hover:bg-stone-400 text-white">Submit Request</Button>
             </div>
           </div>
         </div>
