@@ -169,9 +169,9 @@ export default function MessagesPage() {
   }
 
   async function handleCreateGroup() {
-    if (!groupName.trim() || selectedUsers.length === 0) return
+    if (selectedUsers.length === 0) return
     setCreating(true)
-    const ch = await createGroup(groupName, selectedUsers)
+    const ch = await createGroup(groupName || null, selectedUsers)
     setModal(null)
     setGroupName('')
     setSelectedUsers([])
@@ -183,11 +183,15 @@ export default function MessagesPage() {
     setSelectedUsers(prev => prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id])
   }
 
+  function groupLabel(ch: Channel) {
+    return ch.name || ch.members.filter(m => m.userId !== myId).map(m => m.name).join(', ') || 'Group'
+  }
+
   const activeLabel = activeTarget === 'org'
     ? '# Team'
     : activeChannel?.type === 'dm'
     ? dmName(activeChannel, myId)
-    : (activeChannel?.name ?? 'Group')
+    : activeChannel ? groupLabel(activeChannel) : 'Group'
 
   return (
     <div className="flex h-[calc(100vh-4rem)] -mx-6 -my-6 overflow-hidden">
@@ -245,7 +249,7 @@ export default function MessagesPage() {
               <button key={ch.id} onClick={() => selectTarget(ch.id, ch)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${activeTarget === ch.id ? 'bg-stone-500/20 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}>
                 <Users size={13} className="shrink-0 text-zinc-500" />
-                <span className="truncate">{ch.name}</span>
+                <span className="truncate">{groupLabel(ch)}</span>
                 <span className="ml-auto text-zinc-600 text-xs">{ch.members.length}</span>
               </button>
             ))}
@@ -313,7 +317,7 @@ export default function MessagesPage() {
               <Input
                 value={groupName}
                 onChange={e => setGroupName(e.target.value)}
-                placeholder="Group name…"
+                placeholder="Group name (optional)"
                 className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
               />
               <div className="space-y-1 max-h-52 overflow-y-auto">
@@ -333,7 +337,7 @@ export default function MessagesPage() {
               </div>
               <Button
                 onClick={handleCreateGroup}
-                disabled={!groupName.trim() || selectedUsers.length === 0 || creating}
+                disabled={selectedUsers.length === 0 || creating}
                 className="w-full bg-stone-500 hover:bg-stone-400 text-white">
                 {creating ? 'Creating…' : `Create Group${selectedUsers.length > 0 ? ` (${selectedUsers.length + 1})` : ''}`}
               </Button>

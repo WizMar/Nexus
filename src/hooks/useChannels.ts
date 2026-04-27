@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
+import { toast } from 'sonner'
 
 export type ChannelType = 'dm' | 'group'
 
@@ -84,14 +85,14 @@ export function useChannels() {
       .insert({ org_id: user.org_id, type: 'dm', created_by: user.id })
       .select()
       .single()
-    if (chErr || !ch) return null
+    if (chErr || !ch) { toast.error('Failed to create DM'); return null }
 
     // Insert both members
     const { error: memErr } = await supabase.from('channel_members').insert([
       { channel_id: ch.id, user_id: user.id },
       { channel_id: ch.id, user_id: otherUserId },
     ])
-    if (memErr) return null
+    if (memErr) { toast.error('Failed to add members to DM'); return null }
 
     // Fetch other user's name
     const { data: profile } = await supabase.from('profiles').select('name').eq('id', otherUserId).single()
@@ -111,21 +112,21 @@ export function useChannels() {
     return newChannel
   }, [channels, user])
 
-  const createGroup = useCallback(async (name: string, memberIds: string[]): Promise<Channel | null> => {
-    if (!user?.org_id || !user?.id || !name.trim()) return null
+  const createGroup = useCallback(async (name: string | null, memberIds: string[]): Promise<Channel | null> => {
+    if (!user?.org_id || !user?.id) return null
 
     const { data: ch, error: chErr } = await supabase
       .from('channels')
-      .insert({ org_id: user.org_id, type: 'group', name: name.trim(), created_by: user.id })
+      .insert({ org_id: user.org_id, type: 'group', name: name?.trim() || null, created_by: user.id })
       .select()
       .single()
-    if (chErr || !ch) return null
+    if (chErr || !ch) { toast.error('Failed to create group'); return null }
 
     const allIds = Array.from(new Set([user.id, ...memberIds]))
     const { error: memErr } = await supabase.from('channel_members').insert(
       allIds.map(uid => ({ channel_id: ch.id, user_id: uid }))
     )
-    if (memErr) return null
+    if (memErr) { toast.error('Failed to add members to group'); return null }
 
     // Fetch member names
     const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', allIds)
@@ -138,7 +139,7 @@ export function useChannels() {
       id: ch.id as string,
       orgId: ch.org_id as string,
       type: 'group',
-      name: name.trim(),
+      name: name?.trim() || null,
       members,
       createdAt: ch.created_at as string,
     }
