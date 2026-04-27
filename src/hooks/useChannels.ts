@@ -79,34 +79,35 @@ export function useChannels() {
     )
     if (existing) return existing
 
-    // Create the channel
-    const { data: ch, error: chErr } = await supabase
+    // Generate ID client-side so we don't need to read back after insert
+    const channelId = crypto.randomUUID()
+    const now = new Date().toISOString()
+
+    const { error: chErr } = await supabase
       .from('channels')
-      .insert({ org_id: user.org_id, type: 'dm', created_by: user.id })
-      .select()
-      .single()
-    if (chErr || !ch) { toast.error('Failed to create DM'); return null }
+      .insert({ id: channelId, org_id: user.org_id, type: 'dm', created_by: user.id, created_at: now })
+    if (chErr) { toast.error(`Failed to create DM: ${chErr.message}`); return null }
 
     // Insert both members
     const { error: memErr } = await supabase.from('channel_members').insert([
-      { channel_id: ch.id, user_id: user.id },
-      { channel_id: ch.id, user_id: otherUserId },
+      { channel_id: channelId, user_id: user.id },
+      { channel_id: channelId, user_id: otherUserId },
     ])
-    if (memErr) { toast.error('Failed to add members to DM'); return null }
+    if (memErr) { toast.error(`Failed to add members: ${memErr.message}`); return null }
 
     // Fetch other user's name
     const { data: profile } = await supabase.from('profiles').select('name').eq('id', otherUserId).single()
 
     const newChannel: Channel = {
-      id: ch.id as string,
-      orgId: ch.org_id as string,
+      id: channelId,
+      orgId: user.org_id,
       type: 'dm',
       name: null,
       members: [
         { userId: user.id, name: user.name },
         { userId: otherUserId, name: (profile?.name as string) ?? 'Unknown' },
       ],
-      createdAt: ch.created_at as string,
+      createdAt: now,
     }
     setChannels(prev => [...prev, newChannel])
     return newChannel
@@ -115,18 +116,20 @@ export function useChannels() {
   const createGroup = useCallback(async (name: string | null, memberIds: string[]): Promise<Channel | null> => {
     if (!user?.org_id || !user?.id) return null
 
-    const { data: ch, error: chErr } = await supabase
+    const channelId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const trimmedName = name?.trim() || null
+
+    const { error: chErr } = await supabase
       .from('channels')
-      .insert({ org_id: user.org_id, type: 'group', name: name?.trim() || null, created_by: user.id })
-      .select()
-      .single()
-    if (chErr || !ch) { toast.error('Failed to create group'); return null }
+      .insert({ id: channelId, org_id: user.org_id, type: 'group', name: trimmedName, created_by: user.id, created_at: now })
+    if (chErr) { toast.error(`Failed to create group: ${chErr.message}`); return null }
 
     const allIds = Array.from(new Set([user.id, ...memberIds]))
     const { error: memErr } = await supabase.from('channel_members').insert(
-      allIds.map(uid => ({ channel_id: ch.id, user_id: uid }))
+      allIds.map(uid => ({ channel_id: channelId, user_id: uid }))
     )
-    if (memErr) { toast.error('Failed to add members to group'); return null }
+    if (memErr) { toast.error(`Failed to add members: ${memErr.message}`); return null }
 
     // Fetch member names
     const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', allIds)
@@ -136,12 +139,12 @@ export function useChannels() {
     }))
 
     const newChannel: Channel = {
-      id: ch.id as string,
-      orgId: ch.org_id as string,
+      id: channelId,
+      orgId: user.org_id,
       type: 'group',
-      name: name?.trim() || null,
+      name: trimmedName,
       members,
-      createdAt: ch.created_at as string,
+      createdAt: now,
     }
     setChannels(prev => [...prev, newChannel])
     return newChannel
