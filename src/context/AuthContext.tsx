@@ -30,14 +30,17 @@ export type Action =
   | 'view:clients'
   | 'create:clients'
   | 'manage:estimates'
+  | 'view:messages'
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
   Subcontractor: [
     'view:timeclock',
     'view:jobs:assigned',
+    'view:messages',
   ],
   Employee: [
     'view:timeclock',
+    'view:messages',
   ],
   Lead: [
     'view:dashboard',
@@ -45,6 +48,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'view:jobs:assigned',
     'view:jobs:all',
     'view:clients',
+    'view:messages',
   ],
   'Project Manager': [
     'view:dashboard',
@@ -59,6 +63,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'view:employees',
     'view:clients',
     'create:clients',
+    'view:messages',
   ],
   Sales: [
     'view:dashboard',
@@ -69,6 +74,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'create:jobs',
     'view:estimates',
     'create:estimates',
+    'view:messages',
   ],
   'Sub-Admin': [
     'view:dashboard',
@@ -86,6 +92,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'invite:members',
     'view:clients',
     'create:clients',
+    'view:messages',
   ],
   Admin: [
     'view:dashboard',
@@ -103,6 +110,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Action[]> = {
     'view:settings',
     'manage:settings',
     'invite:members',
+    'view:messages',
     'view:clients',
     'create:clients',
   ],

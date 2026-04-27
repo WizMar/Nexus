@@ -25,6 +25,7 @@ import TimeClockPage from './pages/TimeClockPage'
 import SettingsPage from './pages/SettingsPage'
 import AccountPage from './pages/AccountPage'
 import ApprovePage from './pages/ApprovePage'
+import MessagesPage from './pages/MessagesPage'
 
 function AppRoutes() {
   const { session, loading, can } = useAuth()
@@ -66,6 +67,7 @@ function AppRoutes() {
           <Route path="/jobs" element={can('view:jobs:all') || can('view:jobs:assigned') ? <JobsPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/jobs/:jobId" element={can('view:jobs:all') || can('view:jobs:assigned') ? <JobDetailPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/estimates" element={can('manage:estimates') ? <EstimatesPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/messages" element={can('view:messages') ? <MessagesPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/employees" element={can('view:employees') ? <EmployeesPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/employees/:id" element={can('view:employees') ? <EmployeeProfilePage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/settings" element={can('manage:settings') ? <SettingsPage /> : <Navigate to="/dashboard" replace />} />
