@@ -19,13 +19,34 @@ export type Channel = {
   createdAt: string
 }
 
+export type OrgMember = {
+  userId: string   // = auth.users.id = profiles.id
+  name: string
+  role: string
+}
+
 export function useChannels() {
   const { user } = useAuth()
   const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([])
 
   useEffect(() => {
     if (!user?.org_id || !user?.id) { setLoading(false); return }
+
+    // Fetch org members from profiles (id = auth.users.id, needed for channel_members FK)
+    supabase
+      .from('profiles')
+      .select('id, name, role')
+      .eq('org_id', user.org_id)
+      .neq('id', user.id)
+      .then(({ data }) => {
+        if (data) setOrgMembers(data.map(p => ({
+          userId: p.id as string,
+          name: (p.name as string) ?? 'Unknown',
+          role: (p.role as string) ?? '',
+        })))
+      })
 
     async function load() {
       const { data: memberships } = await supabase
@@ -39,10 +60,22 @@ export function useChannels() {
 
       const [{ data: chData }, { data: memData }] = await Promise.all([
         supabase.from('channels').select('*').in('id', ids).eq('org_id', user!.org_id!).order('created_at'),
-        supabase.from('channel_members').select('channel_id, user_id, profiles(name)').in('channel_id', ids),
+        supabase.from('channel_members').select('channel_id, user_id').in('channel_id', ids),
       ])
 
       if (!chData) { setLoading(false); return }
+
+      // Fetch profile names separately — profiles(name) join won't work because
+      // channel_members.user_id FK points to auth.users, not profiles directly.
+      const userIds = [...new Set((memData ?? []).map(m => m.user_id as string))]
+      const { data: profileRows } = userIds.length > 0
+        ? await supabase.from('profiles').select('id, name').in('id', userIds)
+        : { data: [] as { id: string; name: string }[] }
+
+      const nameByUser: Record<string, string> = {}
+      for (const p of profileRows ?? []) {
+        nameByUser[p.id as string] = (p.name as string) ?? 'Unknown'
+      }
 
       const membersByChannel: Record<string, ChannelMember[]> = {}
       for (const m of memData ?? []) {
@@ -50,7 +83,7 @@ export function useChannels() {
         if (!membersByChannel[cid]) membersByChannel[cid] = []
         membersByChannel[cid].push({
           userId: m.user_id as string,
-          name: (m.profiles as unknown as { name: string } | null)?.name ?? 'Unknown',
+          name: nameByUser[m.user_id as string] ?? 'Unknown',
         })
       }
 
@@ -162,5 +195,5 @@ export function useChannels() {
     return newChannel
   }, [user])
 
-  return { channels, loading, findOrCreateDM, createGroup }
+  return { channels, loading, orgMembers, findOrCreateDM, createGroup }
 }
