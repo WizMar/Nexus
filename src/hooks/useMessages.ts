@@ -48,7 +48,7 @@ export function useMessages(target: MessageTarget | null) {
 
     let query = supabase
       .from('messages')
-      .select('id, org_id, sender_id, content, created_at, channel_id, profiles(name)')
+      .select('id, org_id, sender_id, content, created_at, channel_id')
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE)
 
@@ -58,15 +58,18 @@ export function useMessages(target: MessageTarget | null) {
       query = query.eq('channel_id', target)
     }
 
-    query.then(({ data }) => {
-      if (data) {
-        const rows = data.map(r => toMessage({
-          ...r,
-          sender_name: (r.profiles as unknown as { name: string } | null)?.name ?? 'Unknown',
-        })).reverse()
+    query.then(async ({ data }) => {
+      if (data && data.length > 0) {
+        const senderIds = [...new Set(data.map(r => r.sender_id as string))]
+        const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', senderIds)
+        const nameById: Record<string, string> = {}
+        for (const p of profiles ?? []) nameById[p.id as string] = (p.name as string) ?? 'Unknown'
+        const rows = data.map(r => toMessage({ ...r, sender_name: nameById[r.sender_id as string] ?? 'Unknown' })).reverse()
         setMessages(rows)
         setHasMore(data.length === PAGE_SIZE)
         if (rows.length > 0) oldestRef.current = rows[0].createdAt
+      } else if (data) {
+        setMessages([])
       }
       setLoading(false)
     })
@@ -112,7 +115,7 @@ export function useMessages(target: MessageTarget | null) {
 
     let query = supabase
       .from('messages')
-      .select('id, org_id, sender_id, content, created_at, channel_id, profiles(name)')
+      .select('id, org_id, sender_id, content, created_at, channel_id')
       .lt('created_at', oldestRef.current)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE)
@@ -125,10 +128,11 @@ export function useMessages(target: MessageTarget | null) {
 
     const { data } = await query
     if (data && data.length > 0) {
-      const rows = data.map(r => toMessage({
-        ...r,
-        sender_name: (r.profiles as unknown as { name: string } | null)?.name ?? 'Unknown',
-      })).reverse()
+      const senderIds = [...new Set(data.map(r => r.sender_id as string))]
+      const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', senderIds)
+      const nameById: Record<string, string> = {}
+      for (const p of profiles ?? []) nameById[p.id as string] = (p.name as string) ?? 'Unknown'
+      const rows = data.map(r => toMessage({ ...r, sender_name: nameById[r.sender_id as string] ?? 'Unknown' })).reverse()
       setMessages(prev => [...rows, ...prev])
       setHasMore(data.length === PAGE_SIZE)
       oldestRef.current = rows[0].createdAt
