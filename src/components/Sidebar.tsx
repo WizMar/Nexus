@@ -22,11 +22,11 @@ const navItems: NavItem[] = [
 ]
 
 type Props = {
-  isOpen: boolean
-  onClose: () => void
+  isOpen?: boolean
+  onClose?: () => void
 }
 
-export default function Sidebar({ isOpen, onClose }: Props) {
+export default function Sidebar({ isOpen = true, onClose = () => {} }: Props) {
   const { can, user } = useAuth()
   const visibleItems = navItems.filter(item => can(item.action))
 
