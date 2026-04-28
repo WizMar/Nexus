@@ -118,21 +118,16 @@ export function useChannels() {
     )
     if (existing) return existing
 
-    // Generate ID client-side so we don't need to read back after insert
     const channelId = crypto.randomUUID()
     const now = new Date().toISOString()
 
-    const { error: chErr } = await supabase
-      .from('channels')
-      .insert({ id: channelId, org_id: orgId, type: 'dm', created_by: user.id, created_at: now })
-    if (chErr) { toast.error(`Failed to create DM: ${chErr.message}`); return null }
-
-    // Insert both members
-    const { error: memErr } = await supabase.from('channel_members').insert([
-      { channel_id: channelId, user_id: user.id },
-      { channel_id: channelId, user_id: otherUserId },
-    ])
-    if (memErr) { toast.error(`Failed to add members: ${memErr.message}`); return null }
+    const { error } = await supabase.rpc('create_dm_channel', {
+      p_channel_id: channelId,
+      p_org_id: orgId,
+      p_user_id: user.id,
+      p_other_user_id: otherUserId,
+    })
+    if (error) { toast.error(`Failed to create DM: ${error.message}`); return null }
 
     // Fetch other user's name
     const { data: profile } = await supabase.from('profiles').select('name').eq('id', otherUserId).single()
@@ -164,17 +159,16 @@ export function useChannels() {
     const channelId = crypto.randomUUID()
     const now = new Date().toISOString()
     const trimmedName = name?.trim() || null
-
-    const { error: chErr } = await supabase
-      .from('channels')
-      .insert({ id: channelId, org_id: orgId, type: 'group', name: trimmedName, created_by: user.id, created_at: now })
-    if (chErr) { toast.error(`Failed to create group: ${chErr.message}`); return null }
-
     const allIds = Array.from(new Set([user.id, ...memberIds]))
-    const { error: memErr } = await supabase.from('channel_members').insert(
-      allIds.map(uid => ({ channel_id: channelId, user_id: uid }))
-    )
-    if (memErr) { toast.error(`Failed to add members: ${memErr.message}`); return null }
+
+    const { error } = await supabase.rpc('create_group_channel', {
+      p_channel_id: channelId,
+      p_org_id: orgId,
+      p_name: trimmedName,
+      p_created_by: user.id,
+      p_member_ids: allIds,
+    })
+    if (error) { toast.error(`Failed to create group: ${error.message}`); return null }
 
     // Fetch member names
     const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', allIds)
