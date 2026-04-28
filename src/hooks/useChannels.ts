@@ -34,19 +34,13 @@ export function useChannels() {
   useEffect(() => {
     if (!user?.org_id || !user?.id) { setLoading(false); return }
 
-    // Fetch org members from profiles (id = auth.users.id, needed for channel_members FK)
-    supabase
-      .from('profiles')
-      .select('id, name, role')
-      .eq('org_id', user.org_id)
-      .neq('id', user.id)
-      .then(({ data }) => {
-        if (data) setOrgMembers(data.map(p => ({
-          userId: p.id as string,
-          name: (p.name as string) ?? 'Unknown',
-          role: (p.role as string) ?? '',
-        })))
-      })
+    supabase.rpc('get_org_members').then(({ data }) => {
+      if (data) setOrgMembers(data.map((p: { id: string; name: string; role: string }) => ({
+        userId: p.id,
+        name: p.name ?? 'Unknown',
+        role: p.role ?? '',
+      })))
+    })
 
     async function load() {
       const { data: memberships } = await supabase
