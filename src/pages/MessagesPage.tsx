@@ -382,14 +382,12 @@ export default function MessagesPage() {
                   <p className="text-white text-sm font-semibold truncate">{name}</p>
                   <p className="text-zinc-500 text-xs">Direct message</p>
                 </div>
-                {/* Mobile: always-visible ··· button */}
                 <button
                   onClick={e => { e.stopPropagation(); setSelectedChannelId(ch.id) }}
                   className="flex md:hidden w-7 h-7 items-center justify-center rounded-lg text-zinc-600 active:text-zinc-300 shrink-0"
                 >
                   <MoreHorizontal size={16} />
                 </button>
-                {/* Desktop: hover trash */}
                 <button
                   onClick={e => { e.stopPropagation(); setSelectedChannelId(ch.id) }}
                   className="hidden md:flex opacity-0 group-hover/row:opacity-100 w-7 h-7 items-center justify-center rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0"
@@ -567,9 +565,9 @@ export default function MessagesPage() {
         </div>
       )}
 
-      {/* Channel delete action sheet — mobile */}
+      {/* Channel delete sheet — works on all screen sizes */}
       {selectedChannelId && (
-        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setSelectedChannelId(null)}>
+        <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setSelectedChannelId(null)}>
           <div
             className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
@@ -577,7 +575,7 @@ export default function MessagesPage() {
             <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mt-3 mb-2" />
             <button
               onClick={() => handleDeleteChannel(selectedChannelId)}
-              className="w-full flex items-center gap-3 px-6 py-4 text-red-400 active:bg-zinc-800 transition-colors text-sm font-medium"
+              className="w-full flex items-center gap-3 px-6 py-4 text-red-400 active:bg-zinc-800 hover:bg-zinc-800 transition-colors text-sm font-medium"
             >
               <Trash2 size={16} />
               Delete Conversation
@@ -585,7 +583,7 @@ export default function MessagesPage() {
             <div className="h-px bg-zinc-800 mx-6" />
             <button
               onClick={() => setSelectedChannelId(null)}
-              className="w-full px-6 py-4 text-zinc-400 active:bg-zinc-800 transition-colors text-sm font-medium pb-8"
+              className="w-full px-6 py-4 text-zinc-400 active:bg-zinc-800 hover:bg-zinc-800 transition-colors text-sm font-medium pb-8"
             >
               Cancel
             </button>
