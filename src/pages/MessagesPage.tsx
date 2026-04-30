@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useMessages, type MessageTarget } from '@/hooks/useMessages'
 import { useChannels, type Channel } from '@/hooks/useChannels'
 import { useAuth } from '@/context/AuthContext'
-import { Send, MessageSquare, Users, X, ChevronLeft, UserPlus, UsersRound, PanelLeftOpen, PanelLeftClose, Trash2 } from 'lucide-react'
+import { Send, MessageSquare, Users, X, ChevronLeft, UserPlus, UsersRound, PanelLeftOpen, PanelLeftClose, Trash2, MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -382,6 +382,14 @@ export default function MessagesPage() {
                   <p className="text-white text-sm font-semibold truncate">{name}</p>
                   <p className="text-zinc-500 text-xs">Direct message</p>
                 </div>
+                {/* Mobile: always-visible ··· button */}
+                <button
+                  onClick={e => { e.stopPropagation(); setSelectedChannelId(ch.id) }}
+                  className="flex md:hidden w-7 h-7 items-center justify-center rounded-lg text-zinc-600 active:text-zinc-300 shrink-0"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {/* Desktop: hover trash */}
                 <button
                   onClick={e => { e.stopPropagation(); setSelectedChannelId(ch.id) }}
                   className="hidden md:flex opacity-0 group-hover/row:opacity-100 w-7 h-7 items-center justify-center rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0"
@@ -415,6 +423,14 @@ export default function MessagesPage() {
                   <p className="text-white text-sm font-semibold truncate">{label}</p>
                   <p className="text-zinc-500 text-xs truncate">{memberNames || `${ch.members.length} members`}</p>
                 </div>
+                {/* Mobile: always-visible ··· button */}
+                <button
+                  onClick={e => { e.stopPropagation(); setSelectedChannelId(ch.id) }}
+                  className="flex md:hidden w-7 h-7 items-center justify-center rounded-lg text-zinc-600 active:text-zinc-300 shrink-0"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {/* Desktop: hover trash */}
                 <button
                   onClick={e => { e.stopPropagation(); setSelectedChannelId(ch.id) }}
                   className="hidden md:flex opacity-0 group-hover/row:opacity-100 w-7 h-7 items-center justify-center rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0"
