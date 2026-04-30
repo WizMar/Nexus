@@ -224,9 +224,11 @@ export default function MessagesPage() {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const channelLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const channelLongPressActivated = useRef(false)
+  const channelTouchStart = useRef<{ x: number; y: number } | null>(null)
 
-  function startChannelLongPress(chId: string) {
+  function startChannelLongPress(e: React.TouchEvent, chId: string) {
     channelLongPressActivated.current = false
+    channelTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
     channelLongPressTimer.current = setTimeout(() => {
       channelLongPressActivated.current = true
       setSelectedChannelId(chId)
@@ -234,17 +236,23 @@ export default function MessagesPage() {
     }, 500)
   }
 
-  function cancelChannelLongPress() {
-    if (channelLongPressTimer.current) {
+  function handleChannelTouchMove(e: React.TouchEvent) {
+    if (!channelTouchStart.current || !channelLongPressTimer.current) return
+    const dx = Math.abs(e.touches[0].clientX - channelTouchStart.current.x)
+    const dy = Math.abs(e.touches[0].clientY - channelTouchStart.current.y)
+    // Only cancel if finger moved enough to be a scroll — ignore micro-tremors
+    if (dx > 8 || dy > 8) {
       clearTimeout(channelLongPressTimer.current)
       channelLongPressTimer.current = null
     }
   }
 
   function handleChannelTouchEnd(e: React.TouchEvent) {
-    cancelChannelLongPress()
+    if (channelLongPressTimer.current) {
+      clearTimeout(channelLongPressTimer.current)
+      channelLongPressTimer.current = null
+    }
     if (channelLongPressActivated.current) {
-      // Prevent the synthetic click so the action sheet doesn't dismiss itself immediately
       e.preventDefault()
       channelLongPressActivated.current = false
     }
@@ -362,9 +370,9 @@ export default function MessagesPage() {
                 className={`group/row flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer select-none ${activeTarget === ch.id ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'}`}
                 style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                 onClick={() => { if (!channelLongPressActivated.current) selectTarget(ch.id, ch) }}
-                onTouchStart={() => startChannelLongPress(ch.id)}
+                onTouchStart={e => startChannelLongPress(e, ch.id)}
                 onTouchEnd={handleChannelTouchEnd}
-                onTouchMove={cancelChannelLongPress}
+                onTouchMove={handleChannelTouchMove}
                 onContextMenu={e => { e.preventDefault(); setSelectedChannelId(ch.id) }}
               >
                 <div className={`w-11 h-11 rounded-full ${color} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
@@ -395,9 +403,9 @@ export default function MessagesPage() {
                 className={`group/row flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer select-none ${activeTarget === ch.id ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'}`}
                 style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                 onClick={() => { if (!channelLongPressActivated.current) selectTarget(ch.id, ch) }}
-                onTouchStart={() => startChannelLongPress(ch.id)}
+                onTouchStart={e => startChannelLongPress(e, ch.id)}
                 onTouchEnd={handleChannelTouchEnd}
-                onTouchMove={cancelChannelLongPress}
+                onTouchMove={handleChannelTouchMove}
                 onContextMenu={e => { e.preventDefault(); setSelectedChannelId(ch.id) }}
               >
                 <div className={`w-11 h-11 rounded-full ${color} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
