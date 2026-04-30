@@ -119,6 +119,14 @@ export default function Sidebar({ collapsed = false, onToggle, isOpen = true, on
         ))}
       </nav>
 
+      {/* Nexus brand */}
+      {!collapsed && (
+        <div className="px-4 py-2.5 border-t border-zinc-800/60">
+          <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-700">Powered by</p>
+          <p className="text-sm font-black tracking-widest text-zinc-500 uppercase leading-tight">Nexus</p>
+        </div>
+      )}
+
       {/* User + Sign Out */}
       <div className="px-2 py-3 border-t border-zinc-800/60 space-y-0.5">
         {user && !collapsed && (
