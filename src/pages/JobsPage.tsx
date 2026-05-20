@@ -20,6 +20,7 @@ import {
 } from '@/types/job'
 import { toast } from 'sonner'
 import { Briefcase } from 'lucide-react'
+import TrashSection from '@/components/TrashSection'
 
 type JobView = 'active' | 'closing' | 'archive'
 const VIEW_STATUSES: Record<JobView, JobStatus[]> = {
@@ -58,7 +59,7 @@ function newJob(): Job {
 
 export default function JobsPage() {
   const navigate = useNavigate()
-  const { jobs, addJob } = useJobs()
+  const { jobs, deletedJobs, addJob, restoreJob, purgeJob } = useJobs()
   const { employees } = useEmployees()
   const { user, can } = useAuth()
   const { prefs } = usePreferences()
@@ -254,6 +255,13 @@ export default function JobsPage() {
           ))}
         </div>
       )}
+
+      {/* Trash */}
+      <TrashSection
+        items={deletedJobs.map(j => ({ id: j.id, label: j.title, sublabel: j.client.name }))}
+        onRestore={restoreJob}
+        onPurge={purgeJob}
+      />
 
       {/* Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

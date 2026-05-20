@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X, BookOpen, FileText, Sparkles, CheckCircle, XCircle, SendHorizontal, Link, ExternalLink } from 'lucide-react'
+import TrashSection from '@/components/TrashSection'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useEstimates } from '@/context/EstimatesContext'
@@ -236,7 +237,7 @@ function BtnGroup<T extends string>({
 }
 
 export default function EstimatesPage() {
-  const { estimates, addEstimate, updateEstimate, deleteEstimate, nextNumber, sendToClient } = useEstimates()
+  const { estimates, deletedEstimates, addEstimate, updateEstimate, deleteEstimate, restoreEstimate, purgeEstimate, nextNumber, sendToClient } = useEstimates()
   const { addJob } = useJobs()
   const { settings } = useSettings()
   const { employees } = useEmployees()
@@ -2256,13 +2257,20 @@ export default function EstimatesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Trash */}
+      <TrashSection
+        items={deletedEstimates.map(e => ({ id: e.id, label: `${e.estimateNumber} — ${e.client.name}`, sublabel: e.address || undefined }))}
+        onRestore={restoreEstimate}
+        onPurge={purgeEstimate}
+      />
+
       {/* Delete Confirm */}
       <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
         <DialogContent className="bg-zinc-900 border-zinc-700 text-white max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">Delete Estimate?</DialogTitle>
           </DialogHeader>
-          <p className="text-zinc-400 text-sm">This action cannot be undone.</p>
+          <p className="text-zinc-400 text-sm">Moved to trash — you can restore it within 30 days.</p>
           <DialogFooter className="mt-4">
             <Button variant="ghost" className="text-zinc-400" onClick={() => setConfirmDelete(null)}>Cancel</Button>
             <Button className="bg-red-700 hover:bg-red-600 text-white" onClick={() => handleDelete(confirmDelete!)}>

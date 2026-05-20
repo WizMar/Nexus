@@ -5,10 +5,13 @@ import type { Estimate, RoofCalc, TradeCalc, LineItem } from '@/types/estimate'
 
 type EstimatesContextType = {
   estimates: Estimate[]
+  deletedEstimates: Estimate[]
   loading: boolean
   addEstimate: (e: Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateEstimate: (e: Estimate) => Promise<void>
   deleteEstimate: (id: string) => Promise<void>
+  restoreEstimate: (id: string) => Promise<void>
+  purgeEstimate: (id: string) => Promise<void>
   nextNumber: () => Promise<string>
   sendToClient: (estimateId: string) => Promise<string | null>
 }
@@ -41,9 +44,12 @@ function toEstimate(row: Record<string, unknown>): Estimate {
   }
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 export function EstimatesProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const [estimates, setEstimates] = useState<Estimate[]>([])
+  const [deletedEstimates, setDeletedEstimates] = useState<Estimate[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -54,7 +60,11 @@ export function EstimatesProvider({ children }: { children: React.ReactNode }) {
       .eq('org_id', user.org_id)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        if (data) setEstimates(data.map(toEstimate))
+        if (data) {
+          const cutoff = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
+          setEstimates(data.filter((r: Record<string, unknown>) => !r.deleted_at).map(toEstimate))
+          setDeletedEstimates(data.filter((r: Record<string, unknown>) => r.deleted_at && (r.deleted_at as string) >= cutoff).map(toEstimate))
+        }
         setLoading(false)
       })
   }, [user?.org_id])
@@ -113,8 +123,27 @@ export function EstimatesProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function deleteEstimate(id: string) {
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('estimates').update({ deleted_at: now }).eq('id', id)
+    if (!error) {
+      const est = estimates.find(x => x.id === id)
+      setEstimates(prev => prev.filter(x => x.id !== id))
+      if (est) setDeletedEstimates(prev => [est, ...prev])
+    }
+  }
+
+  async function restoreEstimate(id: string) {
+    const { error } = await supabase.from('estimates').update({ deleted_at: null }).eq('id', id)
+    if (!error) {
+      const est = deletedEstimates.find(x => x.id === id)
+      setDeletedEstimates(prev => prev.filter(x => x.id !== id))
+      if (est) setEstimates(prev => [est, ...prev])
+    }
+  }
+
+  async function purgeEstimate(id: string) {
     const { error } = await supabase.from('estimates').delete().eq('id', id)
-    if (!error) setEstimates(prev => prev.filter(x => x.id !== id))
+    if (!error) setDeletedEstimates(prev => prev.filter(x => x.id !== id))
   }
 
   async function sendToClient(estimateId: string): Promise<string | null> {
@@ -133,7 +162,7 @@ export function EstimatesProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <EstimatesContext.Provider value={{ estimates, loading, addEstimate, updateEstimate, deleteEstimate, nextNumber, sendToClient }}>
+    <EstimatesContext.Provider value={{ estimates, deletedEstimates, loading, addEstimate, updateEstimate, deleteEstimate, restoreEstimate, purgeEstimate, nextNumber, sendToClient }}>
       {children}
     </EstimatesContext.Provider>
   )

@@ -9,9 +9,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Folder, ChevronRight, Phone, Mail } from 'lucide-react'
 import { toast } from 'sonner'
+import TrashSection from '@/components/TrashSection'
 
 export default function ClientsPage() {
-  const { clients, properties, loading, addClient } = useClients()
+  const { clients, deletedClients, properties, loading, addClient, restoreClient, purgeClient } = useClients()
   const { can } = useAuth()
   const navigate = useNavigate()
 
@@ -138,6 +139,12 @@ export default function ClientsPage() {
             ))}
         </div>
       )}
+
+      <TrashSection
+        items={deletedClients.map(c => ({ id: c.id, label: c.name, sublabel: c.phone || c.email || undefined }))}
+        onRestore={restoreClient}
+        onPurge={purgeClient}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-700 text-white max-w-md max-h-[90vh] overflow-y-auto">

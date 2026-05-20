@@ -181,6 +181,7 @@ export default function JobFinancialsTab({ job, canEdit }: Props) {
 
   // ── Expense dialog ──
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [confirmDeleteExpense, setConfirmDeleteExpense] = useState<string | null>(null)
   const [expDraft, setExpDraft] = useState({
     category: 'materials' as ExpenseCategory,
     description: '',
@@ -386,7 +387,7 @@ export default function JobFinancialsTab({ job, canEdit }: Props) {
                 <div className="flex items-center gap-3">
                   <p className="text-sm font-semibold tabular-nums text-red-400">{fmtMoney(exp.amount)}</p>
                   {canEdit && (
-                    <button onClick={() => deleteExpense(exp.id)} className="text-zinc-600 hover:text-red-400 transition-colors p-1">
+                    <button onClick={() => setConfirmDeleteExpense(exp.id)} className="text-zinc-600 hover:text-red-400 transition-colors p-1">
                       <Trash2 size={13} />
                     </button>
                   )}
@@ -590,6 +591,17 @@ export default function JobFinancialsTab({ job, canEdit }: Props) {
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setExpenseOpen(false)} className="border-zinc-700 text-zinc-300">Cancel</Button>
             <Button onClick={saveExpense} className="bg-stone-500 hover:bg-stone-400 text-white">Add Expense</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmDeleteExpense} onOpenChange={() => setConfirmDeleteExpense(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 text-white max-w-sm">
+          <DialogHeader><DialogTitle>Delete Expense?</DialogTitle></DialogHeader>
+          <p className="text-zinc-400 text-sm">This expense record will be permanently removed.</p>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" className="text-zinc-400" onClick={() => setConfirmDeleteExpense(null)}>Cancel</Button>
+            <Button className="bg-red-700 hover:bg-red-600 text-white" onClick={async () => { await deleteExpense(confirmDeleteExpense!); setConfirmDeleteExpense(null) }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1000,7 +1000,7 @@ export default function JobDetailPage() {
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="bg-zinc-900 border-zinc-700 text-white max-w-sm">
           <DialogHeader><DialogTitle>Delete Job?</DialogTitle></DialogHeader>
-          <p className="text-zinc-400 text-sm">This will permanently delete <span className="text-white font-medium">{job.title}</span>. Photos and estimates will also be removed.</p>
+          <p className="text-zinc-400 text-sm">Moved to trash — you can restore it from the Jobs page within 30 days.</p>
           <DialogFooter className="mt-4">
             <Button variant="ghost" className="text-zinc-400" onClick={() => setConfirmDelete(false)}>Cancel</Button>
             <Button className="bg-red-700 hover:bg-red-600 text-white" onClick={handleDelete}>Delete</Button>

@@ -5,10 +5,13 @@ import type { Job } from '@/types/job'
 
 type JobsContextType = {
   jobs: Job[]
+  deletedJobs: Job[]
   loading: boolean
   addJob: (job: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) => Promise<boolean>
   updateJob: (job: Job) => Promise<void>
   deleteJob: (id: string) => Promise<void>
+  restoreJob: (id: string) => Promise<void>
+  purgeJob: (id: string) => Promise<void>
   requestApproval: (jobId: string) => Promise<string | null>
 }
 
@@ -45,17 +48,17 @@ function toJob(row: Record<string, unknown>): Job {
   }
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 export function JobsProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth()
   const [jobs, setJobs] = useState<Job[]>([])
+  const [deletedJobs, setDeletedJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (authLoading) return
-    if (!user?.org_id) {
-      setLoading(false)
-      return
-    }
+    if (!user?.org_id) { setLoading(false); return }
     setLoading(true)
     supabase
       .from('jobs')
@@ -63,7 +66,11 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
       .eq('org_id', user.org_id)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        if (data) setJobs(data.map(toJob))
+        if (data) {
+          const cutoff = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
+          setJobs(data.filter((r: Record<string, unknown>) => !r.deleted_at).map(toJob))
+          setDeletedJobs(data.filter((r: Record<string, unknown>) => r.deleted_at && (r.deleted_at as string) >= cutoff).map(toJob))
+        }
         setLoading(false)
       })
   }, [user?.org_id, authLoading])
@@ -124,8 +131,27 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function deleteJob(id: string) {
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('jobs').update({ deleted_at: now }).eq('id', id)
+    if (!error) {
+      const job = jobs.find(j => j.id === id)
+      setJobs(prev => prev.filter(j => j.id !== id))
+      if (job) setDeletedJobs(prev => [job, ...prev])
+    }
+  }
+
+  async function restoreJob(id: string) {
+    const { error } = await supabase.from('jobs').update({ deleted_at: null }).eq('id', id)
+    if (!error) {
+      const job = deletedJobs.find(j => j.id === id)
+      setDeletedJobs(prev => prev.filter(j => j.id !== id))
+      if (job) setJobs(prev => [job, ...prev])
+    }
+  }
+
+  async function purgeJob(id: string) {
     const { error } = await supabase.from('jobs').delete().eq('id', id)
-    if (!error) setJobs(prev => prev.filter(j => j.id !== id))
+    if (!error) setDeletedJobs(prev => prev.filter(j => j.id !== id))
   }
 
   async function requestApproval(jobId: string): Promise<string | null> {
@@ -146,7 +172,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, deleteJob, requestApproval }}>
+    <JobsContext.Provider value={{ jobs, deletedJobs, loading, addJob, updateJob, deleteJob, restoreJob, purgeJob, requestApproval }}>
       {children}
     </JobsContext.Provider>
   )

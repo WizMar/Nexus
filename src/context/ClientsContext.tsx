@@ -5,11 +5,14 @@ import type { Client, Property, PropertyType } from '@/types/client'
 
 type ClientsContextType = {
   clients: Client[]
+  deletedClients: Client[]
   properties: Property[]
   loading: boolean
   addClient: (data: Omit<Client, 'id' | 'orgId' | 'createdAt'>) => Promise<Client | null>
   updateClient: (client: Client) => Promise<void>
   deleteClient: (id: string) => Promise<void>
+  restoreClient: (id: string) => Promise<void>
+  purgeClient: (id: string) => Promise<void>
   addProperty: (data: { clientId: string; address: string; type: PropertyType; notes: string }) => Promise<Property | null>
   updateProperty: (property: Property) => Promise<void>
   deleteProperty: (id: string) => Promise<void>
@@ -41,9 +44,12 @@ function toProperty(row: Record<string, unknown>): Property {
   }
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 export function ClientsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const [clients, setClients] = useState<Client[]>([])
+  const [deletedClients, setDeletedClients] = useState<Client[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -54,7 +60,11 @@ export function ClientsProvider({ children }: { children: React.ReactNode }) {
       supabase.from('clients').select('*').eq('org_id', user.org_id).order('name'),
       supabase.from('properties').select('*').eq('org_id', user.org_id).order('created_at'),
     ]).then(([{ data: c }, { data: p }]) => {
-      if (c) setClients(c.map(toClient))
+      if (c) {
+        const cutoff = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
+        setClients(c.filter((r: Record<string, unknown>) => !r.deleted_at).map(toClient))
+        setDeletedClients(c.filter((r: Record<string, unknown>) => r.deleted_at && (r.deleted_at as string) >= cutoff).map(toClient))
+      }
       if (p) setProperties(p.map(toProperty))
       setLoading(false)
     })
@@ -81,9 +91,28 @@ export function ClientsProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function deleteClient(id: string) {
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('clients').update({ deleted_at: now }).eq('id', id)
+    if (!error) {
+      const client = clients.find(c => c.id === id)
+      setClients(prev => prev.filter(c => c.id !== id))
+      if (client) setDeletedClients(prev => [client, ...prev])
+    }
+  }
+
+  async function restoreClient(id: string) {
+    const { error } = await supabase.from('clients').update({ deleted_at: null }).eq('id', id)
+    if (!error) {
+      const client = deletedClients.find(c => c.id === id)
+      setDeletedClients(prev => prev.filter(c => c.id !== id))
+      if (client) setClients(prev => [...prev, client].sort((a, b) => a.name.localeCompare(b.name)))
+    }
+  }
+
+  async function purgeClient(id: string) {
     const { error } = await supabase.from('clients').delete().eq('id', id)
     if (!error) {
-      setClients(prev => prev.filter(c => c.id !== id))
+      setDeletedClients(prev => prev.filter(c => c.id !== id))
       setProperties(prev => prev.filter(p => p.clientId !== id))
     }
   }
@@ -114,7 +143,7 @@ export function ClientsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ClientsContext.Provider value={{ clients, properties, loading, addClient, updateClient, deleteClient, addProperty, updateProperty, deleteProperty }}>
+    <ClientsContext.Provider value={{ clients, deletedClients, properties, loading, addClient, updateClient, deleteClient, restoreClient, purgeClient, addProperty, updateProperty, deleteProperty }}>
       {children}
     </ClientsContext.Provider>
   )
