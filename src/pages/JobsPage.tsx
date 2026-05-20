@@ -19,10 +19,15 @@ import {
   JOB_TYPES, STATUS_BADGE, STATUS_BORDER,
 } from '@/types/job'
 import { toast } from 'sonner'
-import { Briefcase, Archive } from 'lucide-react'
+import { Briefcase } from 'lucide-react'
 
-const ACTIVE_STATUSES: JobStatus[] = ['Active', 'Scheduled', 'Completed', 'Invoiced', 'Draft']
-const ARCHIVED_STATUSES: JobStatus[] = ['Paid', 'Cancelled', 'Written Off']
+type JobView = 'active' | 'closing' | 'archive'
+const VIEW_STATUSES: Record<JobView, JobStatus[]> = {
+  active:  ['Draft', 'Scheduled', 'Active'],
+  closing: ['Completed', 'Invoiced'],
+  archive: ['Paid', 'Cancelled', 'Written Off'],
+}
+const VIEW_LABELS: Record<JobView, string> = { active: 'Active', closing: 'Closing', archive: 'Archive' }
 
 function newJob(): Job {
   return {
@@ -60,13 +65,9 @@ export default function JobsPage() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [showArchive, setShowArchive] = useState(() => searchParams.get('archive') === '1')
-  const [filterStatus, setFilterStatus] = useState<JobStatus>(() => {
-    const s = searchParams.get('status') as JobStatus
-    const validActive = ACTIVE_STATUSES.includes(s)
-    const validArchive = ARCHIVED_STATUSES.includes(s)
-    if (validActive || validArchive) return s
-    return 'Active'
+  const [view, setView] = useState<JobView>(() => {
+    const v = searchParams.get('view') as JobView
+    return v && v in VIEW_STATUSES ? v : 'active'
   })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [draft, setDraft] = useState<Job>(newJob())
@@ -76,23 +77,20 @@ export default function JobsPage() {
 
   const myEmployee = employees.find(e => e.email === user?.email)
   const assignedOnly = !can('view:jobs:all')
-  const isAdmin = can('view:jobs:all')
 
   const visibleJobs = assignedOnly && myEmployee
     ? jobs.filter(j => j.leadId === myEmployee.id || j.crewIds.includes(myEmployee.id))
     : jobs
 
-  const modeStatuses = showArchive ? ARCHIVED_STATUSES : ACTIVE_STATUSES
-  const modeJobs = visibleJobs.filter(j => modeStatuses.includes(j.status))
+  const viewStatuses = VIEW_STATUSES[view]
+  const viewJobs = visibleJobs.filter(j => viewStatuses.includes(j.status))
 
-  const filtered = modeJobs.filter(j => {
-    const matchSearch = !search ||
-      j.title.toLowerCase().includes(search.toLowerCase()) ||
-      j.client.name.toLowerCase().includes(search.toLowerCase()) ||
-      j.address.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = j.status === filterStatus
-    return matchSearch && matchStatus
-  })
+  const filtered = viewJobs.filter(j =>
+    !search ||
+    j.title.toLowerCase().includes(search.toLowerCase()) ||
+    j.client.name.toLowerCase().includes(search.toLowerCase()) ||
+    j.address.toLowerCase().includes(search.toLowerCase())
+  )
 
   function openCreate() {
     setDraft(newJob())
@@ -122,22 +120,30 @@ export default function JobsPage() {
   const empName = (id: string | null) =>
     id ? (employees.find(e => e.id === id)?.name ?? 'Unknown') : '—'
 
-  const statusCounts = modeStatuses.reduce((acc, s) => {
-    acc[s] = modeJobs.filter(j => j.status === s).length
-    return acc
-  }, {} as Record<JobStatus, number>)
+  const viewCounts: Record<JobView, number> = {
+    active:  visibleJobs.filter(j => VIEW_STATUSES.active.includes(j.status)).length,
+    closing: visibleJobs.filter(j => VIEW_STATUSES.closing.includes(j.status)).length,
+    archive: visibleJobs.filter(j => VIEW_STATUSES.archive.includes(j.status)).length,
+  }
 
   const jobGroups = Object.entries(
-    filtered.reduce((acc, job) => {
+    filtered.reduce((acc: Record<string, typeof filtered>, job) => {
       const key = job.address?.trim() || job.client.name || 'No Address'
       if (!acc[key]) acc[key] = []
       acc[key].push(job)
       return acc
-    }, {} as Record<string, typeof filtered>)
+    }, {})
   ).sort(([, a], [, b]) => {
     const latest = (arr: typeof filtered) => Math.max(...arr.map(j => new Date(j.createdAt).getTime()))
     return latest(b) - latest(a)
   })
+
+  function switchView(v: JobView) {
+    setView(v)
+    setSearchParams({ view: v })
+  }
+
+  const VIEWS: JobView[] = ['active', 'closing', 'archive']
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 text-white">
@@ -147,46 +153,30 @@ export default function JobsPage() {
           <h2 className="text-xl md:text-2xl font-bold text-white">Jobs</h2>
           <p className="hidden md:block text-zinc-400 text-sm mt-1">Manage your active and upcoming jobs.</p>
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <button
-              onClick={() => { setShowArchive(s => { const next = !s; const status = next ? 'Paid' : 'Active'; setFilterStatus(status); setSearchParams(next ? { archive: '1', status } : { status }); return next }) }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                showArchive
-                  ? 'border-amber-700 bg-amber-900/30 text-amber-400'
-                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              <Archive size={13} />
-              {showArchive ? 'Viewing Archive' : 'Archive'}
-            </button>
-          )}
-          {!showArchive && (
-            <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white">
-              + New Job
-            </Button>
-          )}
-        </div>
+        {view !== 'archive' && (
+          <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white">
+            + New Job
+          </Button>
+        )}
       </div>
 
-      {/* Status Tabs */}
-      {modeStatuses.length > 1 && (
-        <div className="flex border-b border-zinc-800">
-          {modeStatuses.map(s => (
-            <button
-              key={s}
-              onClick={() => { setFilterStatus(s); setSearchParams(showArchive ? { archive: '1', status: s } : { status: s }) }}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                filterStatus === s
-                  ? 'border-stone-500 text-white'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {s} {statusCounts[s] > 0 && <span className="ml-1 text-xs opacity-60">({statusCounts[s]})</span>}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* View Tabs */}
+      <div className="flex border-b border-zinc-800">
+        {VIEWS.map(v => (
+          <button
+            key={v}
+            onClick={() => switchView(v)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${
+              view === v
+                ? 'border-stone-500 text-white'
+                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {VIEW_LABELS[v]}
+            {viewCounts[v] > 0 && <span className="ml-1.5 text-xs opacity-60">({viewCounts[v]})</span>}
+          </button>
+        ))}
+      </div>
 
       {/* Search */}
       <Input
@@ -202,11 +192,11 @@ export default function JobsPage() {
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <Briefcase className="w-10 h-10 text-zinc-600" strokeWidth={1.5} />
             <p className="text-zinc-500 text-sm">
-              {modeJobs.length === 0
-                ? showArchive ? 'No archived jobs yet.' : assignedOnly ? 'No jobs assigned to you yet.' : 'No jobs yet.'
+              {viewJobs.length === 0
+                ? view === 'archive' ? 'No archived jobs yet.' : assignedOnly ? 'No jobs assigned to you yet.' : view === 'closing' ? 'No jobs awaiting payment.' : 'No active jobs yet.'
                 : 'No jobs match your search.'}
             </p>
-            {modeJobs.length === 0 && !assignedOnly && !showArchive && (
+            {viewJobs.length === 0 && !assignedOnly && view === 'active' && (
               <Button onClick={openCreate} className="bg-stone-500 hover:bg-stone-400 text-white mt-1">
                 + Create First Job
               </Button>
