@@ -17,6 +17,7 @@ type FinancialsContextType = {
   addPayment: (p: Omit<Payment, 'id' | 'createdAt'>) => Promise<Payment | null>
   deletePayment: (id: string) => Promise<void>
   addExpense: (e: Omit<JobExpense, 'id' | 'createdAt'>) => Promise<JobExpense | null>
+  updateExpense: (e: JobExpense) => Promise<void>
   deleteExpense: (id: string) => Promise<void>
   nextInvoiceNumber: () => Promise<string>
 }
@@ -189,6 +190,14 @@ export function FinancialsProvider({ children }: { children: React.ReactNode }) 
     return null
   }
 
+  async function updateExpense(e: JobExpense) {
+    const { error } = await supabase.from('job_expenses').update({
+      category: e.category, description: e.description,
+      amount: e.amount, date: e.date, vendor: e.vendor,
+    }).eq('id', e.id)
+    if (!error) setExpenses(prev => prev.map(x => x.id === e.id ? e : x))
+  }
+
   async function deleteExpense(id: string) {
     const { error } = await supabase.from('job_expenses').delete().eq('id', id)
     if (!error) setExpenses(prev => prev.filter(e => e.id !== id))
@@ -200,7 +209,7 @@ export function FinancialsProvider({ children }: { children: React.ReactNode }) 
       invoicesByJob, paymentsByJob, expensesByJob,
       addInvoice, updateInvoice, deleteInvoice,
       addPayment, deletePayment,
-      addExpense, deleteExpense,
+      addExpense, updateExpense, deleteExpense,
       nextInvoiceNumber,
     }}>
       {children}
