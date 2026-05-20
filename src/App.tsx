@@ -36,6 +36,7 @@ import OnboardingPage from './pages/OnboardingPage'
 import RevenuePage from './pages/RevenuePage'
 import ReviewEstimatePage from './pages/ReviewEstimatePage'
 import CalendarPage from './pages/CalendarPage'
+import InvoicePage from './pages/InvoicePage'
 
 function AppRoutes() {
   const { session, loading, user, can } = useAuth()
@@ -55,6 +56,7 @@ function AppRoutes() {
   if (session && !user?.org_id && !skipped) return (
     <Routes>
       <Route path="/sign/:token" element={<SignContractPage />} />
+      <Route path="/invoice/:id" element={<InvoicePage />} />
       <Route path="*" element={<OnboardingPage onSkip={handleSkip} />} />
     </Routes>
   )
@@ -67,6 +69,7 @@ function AppRoutes() {
       <Route path="/approve/:token" element={<ApprovePage />} />
       <Route path="/sign/:token" element={<SignContractPage />} />
       <Route path="/review/:token" element={<ReviewEstimatePage />} />
+      <Route path="/invoice/:id" element={<InvoicePage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
@@ -107,6 +110,7 @@ function AppRoutes() {
         <Route path="/approve/:token" element={<ApprovePage />} />
         <Route path="/sign/:token" element={<SignContractPage />} />
         <Route path="/review/:token" element={<ReviewEstimatePage />} />
+        <Route path="/invoice/:id" element={<InvoicePage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </EmployeeProvider>

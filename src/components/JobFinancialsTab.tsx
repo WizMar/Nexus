@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Plus, Trash2, Check, X, CheckCircle2 } from 'lucide-react'
+import { Pencil, Plus, Trash2, Check, X, CheckCircle2, Send, Copy, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -156,6 +156,40 @@ export default function JobFinancialsTab({ job, canEdit }: Props) {
     setPaymentOpen(false)
   }
 
+  // ── Send invoice ──
+  const [sendInvoice, setSendInvoice] = useState<Invoice | null>(null)
+  const [sendEmail, setSendEmail] = useState('')
+  const [sending, setSending] = useState(false)
+
+  function openSendInvoice(inv: Invoice) {
+    setSendInvoice(inv)
+    setSendEmail(job.client.email ?? '')
+  }
+
+  async function handleSendInvoice() {
+    if (!sendInvoice) return
+    setSending(true)
+    try {
+      const { error } = await (await import('@/lib/supabase')).supabase.functions.invoke('send-invoice', {
+        body: { invoiceId: sendInvoice.id, toEmail: sendEmail || undefined },
+      })
+      if (error) { toast.error('Failed to send invoice'); return }
+      toast.success(`Invoice sent to ${sendEmail}`)
+      if (sendInvoice.status === 'draft') {
+        await updateInvoice({ ...sendInvoice, status: 'sent' })
+      }
+      setSendInvoice(null)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function copyInvoiceLink(inv: Invoice) {
+    const url = `${window.location.origin}/invoice/${inv.id}`
+    navigator.clipboard.writeText(url)
+    toast.success('Link copied to clipboard')
+  }
+
   // ── Expense dialog (add + edit) ──
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [editingExpense, setEditingExpense] = useState<JobExpense | null>(null)
@@ -274,6 +308,8 @@ export default function JobFinancialsTab({ job, canEdit }: Props) {
                               <CheckCircle2 size={11} /> Mark Paid
                             </button>
                           )}
+                          <button onClick={() => openSendInvoice(inv)} title="Send invoice" className="text-zinc-600 hover:text-blue-400 transition-colors p-1"><Send size={13} /></button>
+                          <button onClick={() => copyInvoiceLink(inv)} title="Copy link" className="text-zinc-600 hover:text-zinc-300 transition-colors p-1"><Copy size={13} /></button>
                           <button onClick={() => openEditInvoice(inv)} className="text-zinc-600 hover:text-zinc-300 transition-colors p-1"><Pencil size={13} /></button>
                           <button onClick={() => setConfirmDeleteInvoice(inv.id)} className="text-zinc-600 hover:text-red-400 transition-colors p-1"><Trash2 size={13} /></button>
                         </div>
@@ -600,6 +636,53 @@ export default function JobFinancialsTab({ job, canEdit }: Props) {
           <DialogFooter className="mt-4">
             <Button variant="ghost" className="text-zinc-400" onClick={() => setConfirmDeleteExpense(null)}>Cancel</Button>
             <Button className="bg-red-700 hover:bg-red-600 text-white" onClick={async () => { await deleteExpense(confirmDeleteExpense!); setConfirmDeleteExpense(null) }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Send Invoice dialog ── */}
+      <Dialog open={!!sendInvoice} onOpenChange={() => setSendInvoice(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 text-white max-w-sm">
+          <DialogHeader><DialogTitle>Send Invoice — {sendInvoice?.invoiceNumber}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs">Client Email</Label>
+              <Input
+                type="email"
+                placeholder="client@email.com"
+                value={sendEmail}
+                onChange={e => setSendEmail(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white"
+              />
+              <p className="text-zinc-600 text-[11px]">The client will receive a professional email with the invoice and a link to view or download a PDF.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs">Shareable Link</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-xs text-zinc-400 truncate">
+                  {sendInvoice ? `${window.location.origin}/invoice/${sendInvoice.id}` : ''}
+                </div>
+                <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-white shrink-0"
+                  onClick={() => { if (sendInvoice) copyInvoiceLink(sendInvoice) }}>
+                  <Copy size={14} />
+                </Button>
+                <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-white shrink-0"
+                  onClick={() => { if (sendInvoice) window.open(`/invoice/${sendInvoice.id}`, '_blank') }}>
+                  <ExternalLink size={14} />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="ghost" className="text-zinc-400" onClick={() => setSendInvoice(null)}>Cancel</Button>
+            <Button
+              className="bg-blue-700 hover:bg-blue-600 text-white gap-2"
+              disabled={!sendEmail || sending}
+              onClick={handleSendInvoice}
+            >
+              <Send size={14} />
+              {sending ? 'Sending…' : 'Send Email'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
