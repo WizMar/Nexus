@@ -6,6 +6,7 @@ import { useFinancials } from '@/context/FinancialsContext'
 import { calcEstimateTotal } from '@/types/estimate'
 import { STATUS_BADGE } from '@/types/job'
 import type { JobStatus } from '@/types/job'
+import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABEL } from '@/types/financial'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -56,7 +57,7 @@ export default function RevenuePage() {
   const navigate = useNavigate()
   const { jobs } = useJobs()
   const { estimates } = useEstimates()
-  const { invoices, payments } = useFinancials()
+  const { invoices, payments, expenses } = useFinancials()
   const [period, setPeriod] = useState<Period>('month')
 
   const estimateByJobId = useMemo(() => {
@@ -126,6 +127,29 @@ export default function RevenuePage() {
     })
   }, [payments, jobs, estimateByJobId])
 
+  const totalExpenses = useMemo(
+    () => expenses
+      .filter(e => inPeriod(e.date || e.createdAt, period))
+      .reduce((sum, e) => sum + e.amount, 0),
+    [expenses, period]
+  )
+
+  const expensesByCategory = useMemo(
+    () => EXPENSE_CATEGORIES
+      .map(cat => ({
+        cat,
+        label: EXPENSE_CATEGORY_LABEL[cat],
+        total: expenses
+          .filter(e => e.category === cat && inPeriod(e.date || e.createdAt, period))
+          .reduce((sum, e) => sum + e.amount, 0),
+      }))
+      .filter(x => x.total > 0)
+      .sort((a, b) => b.total - a.total),
+    [expenses, period]
+  )
+
+  const netProfit = collected - totalExpenses
+
   const collectedJobs = useMemo(
     () => jobs
       .filter(j => j.status === 'Paid' && inPeriod(j.updatedAt, period))
@@ -164,11 +188,19 @@ export default function RevenuePage() {
       </div>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <KpiTile label="Pipeline" value={pipeline} sub="Submitted estimates" color="text-amber-400" />
         <KpiTile label="Contracted" value={contracted} sub="Approved estimates" color="text-blue-400" />
         <KpiTile label="Invoiced" value={invoiced} sub="Awaiting payment" color="text-purple-400" />
-        <KpiTile label="Collected" value={collected} sub="Jobs paid" color="text-emerald-400" />
+        <KpiTile label="Collected" value={collected} sub="Revenue received" color="text-emerald-400" />
+        <KpiTile label="Expenses" value={totalExpenses} sub="Job costs logged" color="text-red-400" />
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-widest mb-3">Net Profit</p>
+          <p className={`text-2xl font-bold tabular-nums leading-none ${netProfit > 0 ? 'text-emerald-400' : netProfit < 0 ? 'text-red-400' : 'text-zinc-600'}`}>
+            {netProfit >= 0 ? fmtMoney(netProfit) : `-${fmtMoney(Math.abs(netProfit))}`}
+          </p>
+          <p className="text-zinc-600 text-xs mt-2">Collected minus expenses</p>
+        </div>
       </div>
 
       {/* Monthly bar chart — always shows last 6 months regardless of period toggle */}
@@ -269,6 +301,36 @@ export default function RevenuePage() {
           </div>
         )}
       </div>
+
+      {/* Expenses by category */}
+      {expensesByCategory.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600 mb-3">Expenses by Category</p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            {expensesByCategory.map((x, i) => (
+              <div
+                key={x.cat}
+                className={`flex items-center justify-between px-4 py-3 ${
+                  i < expensesByCategory.length - 1 ? 'border-b border-zinc-800/50' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="h-1.5 rounded-full bg-red-500/60"
+                    style={{ width: `${Math.round((x.total / totalExpenses) * 80) + 16}px` }}
+                  />
+                  <p className="text-zinc-300 text-sm">{x.label}</p>
+                </div>
+                <p className="text-red-400 text-sm font-semibold tabular-nums">{fmtMoney(x.total)}</p>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-700 bg-zinc-800/30">
+              <p className="text-zinc-400 text-sm font-semibold">Total</p>
+              <p className="text-red-400 text-sm font-bold tabular-nums">{fmtMoney(totalExpenses)}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
